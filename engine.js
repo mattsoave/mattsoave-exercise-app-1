@@ -1,0 +1,276 @@
+// Scoring engine. Pure functions, no DOM, runs in the browser and in Node.
+// Input: the text of a FitNotes CSV export. Output: per-session credits and current "loads".
+(function (root) {
+  'use strict';
+
+  // Every tunable number lives here.
+  const DEFAULTS = {
+    cardio: {
+      tau: 6,            // days. How fast recent cardio load fades (load falls to ~37% after 6 days).
+      K: 12,             // run-equivalent miles. How much recent load halves the value of the next mile.
+      paceStart: 6.5,    // mph. Treadmill running at or below this earns no pace bonus.
+      paceFull: 8.0,     // mph. Treadmill running at or above this earns the full pace bonus.
+      paceBonus: 0.35,   // +35% credit at paceFull.
+      walkFactor: 0.6,   // a walked mile counts as this many run-miles (no incline data used yet).
+    },
+    strength: {
+      tagTau: 1.5,       // days. How fast a muscle group (upper/lower/core) recovers.
+      tagK: 3,           // points. Recent load in one group that halves credit for that group.
+      allTau: 5,         // days. How fast overall strength load fades.
+      allK: 6,           // points. Overall load that halves credit.
+      setsForMax: 12,    // sets in one group on one day that count as a "heavy" session.
+      maxPoints: 3,      // points for a heavy session (light is about 1).
+    },
+  };
+
+  const TREADMILL_RUN = { kind: 'run', treadmill: true };
+  const CARDIO_EXERCISES = {
+    'Home Treadmill': TREADMILL_RUN,
+    'Running (Treadmill)': TREADMILL_RUN,
+    'Treadmill 10mph': TREADMILL_RUN,
+    'Treadmill HIIT': TREADMILL_RUN,
+    'Treadmill Endurance': TREADMILL_RUN,
+    'Running (Outdoor)': { kind: 'run', treadmill: false }, // outdoor times may be elapsed, so no pace bonus
+    'Treadmill (Walking)': { kind: 'walk', treadmill: true },
+  };
+
+  // FitNotes categories map to muscle groups; a few exercises are filed under odd categories.
+  const NAME_TAG = {
+    'Push-ups': 'upper',
+    'Calf Raise': 'lower',
+    'Leg Raises': 'core',
+    'Hip Bridge': 'lower',
+    'Reverse Plank': 'core',
+    'Lunge With Dumbbells': 'lower',
+    'Bicep To Standing Shoulder Press': 'upper',
+    'Standing Dumbbell Chop': 'core',
+    'Wrist Barbell Curl (Supported)': 'upper',
+    'Wrist Dumbbells': 'upper',
+    'Wrist Twists': 'upper',
+  };
+  const CATEGORY_TAG = {
+    legs: 'lower', hips: 'lower', abs: 'core',
+    biceps: 'upper', triceps: 'upper', chest: 'upper', shoulders: 'upper', back: 'upper', forearms: 'upper', traps: 'upper',
+  };
+  const TAGS = ['upper', 'lower', 'core'];
+
+  function parseCsv(text) {
+    const rows = [];
+    let row = [], field = '', quoted = false;
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      if (quoted) {
+        if (c === '"') { if (text[i + 1] === '"') { field += '"'; i++; } else quoted = false; }
+        else field += c;
+      } else if (c === '"') quoted = true;
+      else if (c === ',') { row.push(field); field = ''; }
+      else if (c === '\n' || c === '\r') {
+        if (c === '\r' && text[i + 1] === '\n') i++;
+        row.push(field); field = '';
+        if (row.length > 1 || row[0] !== '') rows.push(row);
+        row = [];
+      } else field += c;
+    }
+    if (field !== '' || row.length) { row.push(field); rows.push(row); }
+    if (!rows.length) return [];
+    const head = rows[0].map((h) => h.trim());
+    return rows.slice(1).map((r) => Object.fromEntries(head.map((h, i) => [h, r[i] === undefined ? '' : r[i]])));
+  }
+
+  function dayNumber(iso) {
+    const [y, m, d] = iso.split('-').map(Number);
+    return Math.round(Date.UTC(y, m - 1, d) / 86400000);
+  }
+  function isoFromDay(n) { return new Date(n * 86400000).toISOString().slice(0, 10); }
+
+  function seconds(t) {
+    const p = String(t || '').split(':').map(Number);
+    if (p.length !== 3 || p.some(isNaN)) return 0;
+    return p[0] * 3600 + p[1] * 60 + p[2];
+  }
+
+  function tagFor(row) {
+    const name = row.Exercise.trim();
+    if (NAME_TAG[name]) return NAME_TAG[name];
+    return CATEGORY_TAG[row.Category.trim().toLowerCase()] || null;
+  }
+
+  // Group the raw rows into one cardio session and per-muscle-group strength sessions per day.
+  function buildDays(rows) {
+    const days = new Map();
+    const unmapped = new Set();
+    const get = (date) => {
+      if (!days.has(date)) days.set(date, { date, segments: [], sets: { upper: 0, lower: 0, core: 0 } });
+      return days.get(date);
+    };
+    for (const r of rows) {
+      const date = r.Date;
+      if (!date) continue;
+      const cardio = CARDIO_EXERCISES[r.Exercise.trim()];
+      if (cardio) {
+        const miles = parseFloat(r.Distance);
+        const secs = seconds(r.Time);
+        if (!(miles > 0) || !(secs > 0)) continue;
+        get(date).segments.push({ miles, minutes: secs / 60, mph: miles / (secs / 3600), ...cardio });
+        continue;
+      }
+      if (r.Category.trim().toLowerCase() === 'cardio') continue; // e.g. rowing machine, not scored yet
+      const tag = tagFor(r);
+      if (!tag) { unmapped.add(r.Exercise.trim()); continue; }
+      get(date).sets[tag] += 1;
+    }
+    return { days: [...days.values()].sort((a, b) => (a.date < b.date ? -1 : 1)), unmapped: [...unmapped] };
+  }
+
+  function paceFactor(mph, c) {
+    const x = (mph - c.paceStart) / (c.paceFull - c.paceStart);
+    return 1 + c.paceBonus * Math.min(1, Math.max(0, x));
+  }
+
+  // Run-equivalent miles for a set of segments, with the pace bonus applied to treadmill running.
+  function cardioPoints(segments, c) {
+    let p = 0;
+    for (const s of segments) {
+      if (s.kind === 'walk') p += s.miles * c.walkFactor;
+      else p += s.miles * (s.treadmill ? paceFactor(s.mph, c) : 1);
+    }
+    return p;
+  }
+
+  // Credit for p points on top of recent load L. Each extra point is worth less than the one before.
+  // Integrating K/(K+L) over the added points makes the total independent of how a day is split up.
+  function cardioCredit(L, p, K) {
+    return K * Math.log((K + L + p) / (K + L));
+  }
+
+  function strengthPoints(sets, s) {
+    return (Math.min(sets, s.setsForMax) / s.setsForMax) * s.maxPoints;
+  }
+
+  function freshState() {
+    return { day: null, cardio: 0, upper: 0, lower: 0, core: 0, strength: 0 };
+  }
+
+  function decay(state, toDay, cfg) {
+    if (state.day === null) return { ...state, day: toDay };
+    const dt = Math.max(0, toDay - state.day);
+    const ct = Math.exp(-dt / cfg.cardio.tau);
+    const tt = Math.exp(-dt / cfg.strength.tagTau);
+    const at = Math.exp(-dt / cfg.strength.allTau);
+    return {
+      day: toDay,
+      cardio: state.cardio * ct,
+      upper: state.upper * tt, lower: state.lower * tt, core: state.core * tt,
+      strength: state.strength * at,
+    };
+  }
+
+  function strengthMultiplier(state, tag, cfg) {
+    const s = cfg.strength;
+    return (1 / (1 + state[tag] / s.tagK)) * (1 / (1 + state.strength / s.allK));
+  }
+
+  function merge(base, over) {
+    const out = {};
+    for (const k of Object.keys(base)) out[k] = { ...base[k], ...((over && over[k]) || {}) };
+    return out;
+  }
+
+  // Walk through every day in order and record the credit each session earned.
+  function score(csvText, overrides) {
+    const cfg = merge(DEFAULTS, overrides);
+    const { days, unmapped } = buildDays(parseCsv(csvText));
+    let state = freshState();
+    const entries = [];
+    for (const d of days) {
+      const n = dayNumber(d.date);
+      state = decay(state, n, cfg);
+
+      if (d.segments.length) {
+        const p = cardioPoints(d.segments, cfg.cardio);
+        const credit = cardioCredit(state.cardio, p, cfg.cardio.K);
+        entries.push({
+          date: d.date, kind: 'cardio', raw: p, credit,
+          miles: d.segments.reduce((a, s) => a + s.miles, 0),
+          segments: d.segments.length,
+        });
+        state.cardio += p;
+      }
+
+      const start = { ...state };
+      let total = 0;
+      for (const tag of TAGS) {
+        const sets = d.sets[tag];
+        if (!sets) continue;
+        const pts = strengthPoints(sets, cfg.strength);
+        const credit = pts * strengthMultiplier(start, tag, cfg);
+        entries.push({ date: d.date, kind: 'strength', tag, sets, raw: pts, credit });
+        state[tag] += pts;
+        total += pts;
+      }
+      state.strength += total;
+    }
+    return { entries, state, unmapped, cfg };
+  }
+
+  // What would a session earn if done on `dateIso`? (state comes from score().)
+  function previewRun(result, dateIso, miles, mph, treadmill) {
+    const cfg = result.cfg;
+    const st = decay(result.state, dayNumber(dateIso), cfg);
+    const p = cardioPoints([{ kind: 'run', miles, mph, treadmill }], cfg.cardio);
+    return { raw: p, credit: cardioCredit(st.cardio, p, cfg.cardio.K) };
+  }
+  function previewStrength(result, dateIso, tag, sets) {
+    const cfg = result.cfg;
+    const st = decay(result.state, dayNumber(dateIso), cfg);
+    const pts = strengthPoints(sets, cfg.strength);
+    return { raw: pts, credit: pts * strengthMultiplier(st, tag, cfg) };
+  }
+
+  // How much of face value the next session of each type would earn right now.
+  function freshness(result, dateIso) {
+    const cfg = result.cfg;
+    const st = decay(result.state, dayNumber(dateIso), cfg);
+    const out = { cardio: cfg.cardio.K / (cfg.cardio.K + st.cardio) };
+    for (const t of TAGS) out[t] = strengthMultiplier(st, t, cfg);
+    return { multipliers: out, loads: st };
+  }
+
+  function mondayOf(iso) {
+    const n = dayNumber(iso);
+    const dow = (n + 3) % 7; // 1970-01-01 was a Thursday; 0 = Monday
+    return isoFromDay(n - dow);
+  }
+
+  // For display only: group credits by calendar week. The scoring itself has no week boundaries.
+  function weekly(entries) {
+    const w = new Map();
+    for (const e of entries) {
+      const k = mondayOf(e.date);
+      if (!w.has(k)) w.set(k, { week: k, cardio: 0, strength: 0, miles: 0 });
+      const o = w.get(k);
+      o[e.kind] += e.credit;
+      if (e.kind === 'cardio') o.miles += e.miles;
+    }
+    return [...w.values()].sort((a, b) => (a.week < b.week ? -1 : 1));
+  }
+
+  function totals(entries, fromIso, toIso) {
+    const t = { cardio: 0, strength: 0, miles: 0, cardioDays: 0, strengthDays: new Set() };
+    for (const e of entries) {
+      if (e.date < fromIso || e.date > toIso) continue;
+      t[e.kind] += e.credit;
+      if (e.kind === 'cardio') { t.miles += e.miles; t.cardioDays++; } else t.strengthDays.add(e.date);
+    }
+    t.strengthDays = t.strengthDays.size;
+    t.total = t.cardio + t.strength;
+    return t;
+  }
+
+  const api = {
+    DEFAULTS, TAGS, parseCsv, buildDays, score, previewRun, previewStrength, freshness, weekly, totals,
+    cardioCredit, paceFactor, isoFromDay, dayNumber,
+  };
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  else root.Engine = api;
+})(typeof self !== 'undefined' ? self : this);
