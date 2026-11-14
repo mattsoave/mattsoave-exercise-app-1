@@ -1,4 +1,4 @@
-const VERSION = 3;
+const VERSION = 4;
 const $ = (id) => document.getElementById(id);
 $('ver').textContent = VERSION;
 
@@ -30,6 +30,7 @@ let result = null;
 const f1 = (x) => x.toFixed(1);
 
 function importCsv(text, name) {
+  if (Weight.isWeightCsv(text)) return importWeight(text, name);
   const r = Engine.score(text);
   if (!r.entries.length) {
     $('importNote').textContent = `${name}: no cardio or strength rows found. Is this a FitNotes export?`;
@@ -39,6 +40,18 @@ function importCsv(text, name) {
   localStorage.setItem('csvName', name);
   localStorage.setItem('csvAt', new Date().toISOString());
   load();
+}
+
+function importWeight(text, name) {
+  if (!Weight.parseWeights(text).length) {
+    $('importNote').textContent = `${name}: no Bodyweight rows found in this body tracker export.`;
+    return;
+  }
+  localStorage.setItem('weightCsv', text);
+  localStorage.setItem('weightCsvName', name);
+  localStorage.setItem('weightCsvAt', new Date().toISOString());
+  loadWeight();
+  $('importNote').textContent = `${name}: ${weights.length} weight readings imported.`;
 }
 
 function load() {
@@ -121,6 +134,73 @@ function renderPreview() {
   renderPreview();
 })));
 
+// ---- Body weight ----
+let weights = [];
+const DAY_MS = 86400000;
+
+function loadWeight() {
+  const text = localStorage.getItem('weightCsv');
+  weights = text ? Weight.parseWeights(text) : [];
+  $('weightCard').hidden = !weights.length;
+  if (weights.length) renderWeight();
+}
+
+function renderWeight() {
+  const range = Weight.RANGES.find((r) => r.key === $('wRange').value) || Weight.RANGES[1];
+  const span = parseFloat($('wSpan').value);
+  $('wSpanOut').textContent = span.toFixed(2);
+  const { start, end, points } = Weight.filterRange(weights, range.months, Date.now());
+  const svg = $('wChart');
+  if (!points.length) {
+    svg.innerHTML = '';
+    $('wSummary').textContent = `No readings in the ${range.label.toLowerCase()}.`;
+    $('wNote').textContent = '';
+    return;
+  }
+  // x is in days so the local fits stay well conditioned
+  const smooth = Weight.loess(points.map((p) => ({ x: p.t / DAY_MS, y: p.pounds })), span);
+  const first = smooth[0], last = smooth[smooth.length - 1];
+  const delta = last - first;
+  $('wSummary').textContent = `Trend ${f1(last)} lb, ${delta >= 0 ? '+' : '-'}${f1(Math.abs(delta))} over the range`;
+  const at = (localStorage.getItem('weightCsvAt') || '').slice(0, 10);
+  $('wNote').textContent = `${points.length} readings shown. ${localStorage.getItem('weightCsvName') || 'Body tracker CSV'}, imported ${at}.`;
+
+  // Chart geometry
+  const W = 520, H = 260, pad = { t: 10, r: 12, b: 26, l: 40 };
+  const ys = points.map((p) => p.pounds).concat(smooth);
+  let lo = Math.min(...ys), hi = Math.max(...ys);
+  const padY = (hi - lo || 1) * 0.08;
+  lo = Math.floor(lo - padY); hi = Math.ceil(hi + padY);
+  const sx = (t) => pad.l + ((t - start) / (end - start)) * (W - pad.l - pad.r);
+  const sy = (v) => pad.t + (1 - (v - lo) / (hi - lo)) * (H - pad.t - pad.b);
+
+  const rawStep = (hi - lo) / 5;
+  const mag = Math.pow(10, Math.floor(Math.log10(rawStep)));
+  const step = mag * ([1, 2, 5, 10].find((m) => m * mag >= rawStep) || 10);
+  let out = '';
+  for (let v = Math.ceil(lo / step) * step; v <= hi; v += step) {
+    out += `<line class="grid" x1="${pad.l}" x2="${W - pad.r}" y1="${sy(v)}" y2="${sy(v)}"/>` +
+           `<text class="lbl" x="${pad.l - 6}" y="${sy(v) + 3}" text-anchor="end">${v}</text>`;
+  }
+  // Month labels along the bottom; thin them out on long ranges
+  const everyN = Math.max(1, Math.round(range.months / 6));
+  const m = new Date(start);
+  m.setDate(1); m.setHours(0, 0, 0, 0); m.setMonth(m.getMonth() + 1);
+  for (let i = 0; m.getTime() <= end; m.setMonth(m.getMonth() + 1), i++) {
+    if (i % everyN) continue;
+    const label = m.toLocaleDateString('en-US', { month: 'short', year: range.months > 12 ? '2-digit' : undefined });
+    out += `<line class="grid" x1="${sx(m.getTime())}" x2="${sx(m.getTime())}" y1="${pad.t}" y2="${H - pad.b}"/>` +
+           `<text class="lbl" x="${sx(m.getTime())}" y="${H - pad.b + 14}" text-anchor="middle">${label}</text>`;
+  }
+  out += points.map((p) => `<circle class="pt" cx="${sx(p.t).toFixed(1)}" cy="${sy(p.pounds).toFixed(1)}" r="2.5"/>`).join('');
+  out += `<path class="trend" d="${points.map((p, i) => `${i ? 'L' : 'M'}${sx(p.t).toFixed(1)},${sy(smooth[i]).toFixed(1)}`).join(' ')}"/>`;
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  svg.innerHTML = out;
+}
+
+$('wRange').addEventListener('change', renderWeight);
+$('wSpan').addEventListener('input', renderWeight);
+
 // ---- Import paths ----
 $('pick').addEventListener('click', () => $('file').click());
 $('file').addEventListener('change', async (e) => {
@@ -139,5 +219,6 @@ async function takeSharedFile() {
 }
 
 load();
+loadWeight();
 takeSharedFile();
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');

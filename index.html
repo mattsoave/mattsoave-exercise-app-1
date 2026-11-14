@@ -80,6 +80,14 @@
   .result { margin-top:14px; }
   .actions { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
   md-outlined-text-field, md-outlined-select { width:100%; }
+  .wchart { width:100%; height:auto; display:block; margin-top:12px; }
+  .wchart .grid { stroke:var(--md-sys-color-outline-variant); stroke-width:1; }
+  .wchart .lbl { fill:var(--md-sys-color-on-surface-variant); font-size:10px; }
+  .wchart .pt { fill:var(--md-sys-color-primary); opacity:.5; }
+  .wchart .trend { fill:none; stroke:var(--md-sys-color-tertiary); stroke-width:2.5; stroke-linejoin:round; stroke-linecap:round; }
+  .slider { display:flex; align-items:center; gap:12px; margin-top:12px; }
+  .slider input { flex:1; accent-color:var(--md-sys-color-primary); }
+  .slider output { min-width:2.5em; text-align:right; }
   [hidden] { display:none !important; }
 </style>
 <script type="module" src="vendor/material.js"></script>
@@ -98,7 +106,7 @@
       <md-filled-button id="install" hidden>Install app</md-filled-button>
     </div>
     <input id="file" type="file" accept=".csv,text/*,application/*" hidden>
-    <p class="hint md-typescale-body-medium" id="importNote">Export from FitNotes and share the CSV to this app, or pick it here. The file stays on this device.</p>
+    <p class="hint md-typescale-body-medium" id="importNote">Export from FitNotes and share the CSV to this app, or pick it here. Workout and body tracker exports both work, and each is kept on this device.</p>
   </section>
 
   <div id="data" hidden>
@@ -152,8 +160,31 @@
       <p class="hint md-typescale-body-small">Credit is the face value minus a discount for recent work of the same kind. The percentage is the average over the whole session, so it is lower than the first mile's value above.</p>
     </section>
   </div>
+
+  <section class="card" id="weightCard" hidden>
+    <h2 class="md-typescale-title-medium">Body weight</h2>
+    <div class="row">
+      <md-outlined-select id="wRange" label="Date range" value="1y">
+        <md-select-option value="2y"><div slot="headline">Last 2 years</div></md-select-option>
+        <md-select-option value="1y" selected><div slot="headline">Last year</div></md-select-option>
+        <md-select-option value="6m"><div slot="headline">Last 6 months</div></md-select-option>
+        <md-select-option value="3m"><div slot="headline">Last 3 months</div></md-select-option>
+        <md-select-option value="1m"><div slot="headline">Last month</div></md-select-option>
+      </md-outlined-select>
+    </div>
+    <div class="slider md-typescale-body-medium">
+      <label for="wSpan">Bandwidth</label>
+      <input id="wSpan" type="range" min="0.05" max="1" step="0.01" value="0.25">
+      <output id="wSpanOut">0.25</output>
+    </div>
+    <p class="hint md-typescale-body-small">Lower follows short-term swings. Higher gives a smoother trend.</p>
+    <div class="result md-typescale-title-medium" id="wSummary"></div>
+    <svg class="wchart" id="wChart" role="img" aria-label="Body weight readings with a smoothed trend line"></svg>
+    <p class="hint md-typescale-body-small" id="wNote"></p>
+  </section>
 </main>
 <script src="engine.js" defer></script>
+<script src="weight.js" defer></script>
 <script src="app.js" defer></script>
 </body>
 </html>
