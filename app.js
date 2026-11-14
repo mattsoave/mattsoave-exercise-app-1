@@ -1,4 +1,4 @@
-const VERSION = 1;
+const VERSION = 2;
 const $ = (id) => document.getElementById(id);
 $('ver').textContent = VERSION;
 
@@ -92,10 +92,10 @@ function renderFresh() {
   const rows = [['Cardio', 'cardio'], ['Upper', 'upper'], ['Lower', 'lower'], ['Core', 'core']];
   $('fresh').innerHTML = rows.map(([label, k]) => {
     const pct = Math.round(multipliers[k] * 100);
-    return `<span>${label}</span><div class="bar"><span style="width:${pct}%"></span></div><span>${pct}%</span>`;
+    return `<span>${label}</span><md-linear-progress value="${multipliers[k]}" max="1"></md-linear-progress><span>${pct}%</span>`;
   }).join('');
   const best = rows.reduce((a, b) => (multipliers[b[1]] > multipliers[a[1]] ? b : a));
-  $('bestMove').textContent = `Percent of full value the next session would earn today. ${best[0]} is the freshest.`;
+  $('bestMove').textContent = `How much of face value the first mile or set would earn if you did it today. ${best[0]} is the freshest.`;
 }
 
 function renderPreview() {
@@ -116,12 +116,13 @@ function renderPreview() {
   $('preview').textContent = `${label}: face value ${f1(p.raw)}, credit ${f1(p.credit)} (${Math.round((100 * p.credit) / p.raw)}%)`;
 }
 
-['type', 'when', 'miles', 'mph', 'where', 'tag', 'sets'].forEach((id) => $(id).addEventListener('input', () => {
+['type', 'when', 'miles', 'mph', 'where', 'tag', 'sets'].forEach((id) => ['input', 'change'].forEach((ev) => $(id).addEventListener(ev, () => {
   if (id === 'type') { $('runInputs').hidden = $('type').value !== 'run'; $('strInputs').hidden = $('type').value === 'run'; }
   renderPreview();
-}));
+})));
 
 // ---- Import paths ----
+$('pick').addEventListener('click', () => $('file').click());
 $('file').addEventListener('change', async (e) => {
   const file = e.target.files[0];
   if (file) importCsv(await file.text(), file.name);

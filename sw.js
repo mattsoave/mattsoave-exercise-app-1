@@ -1,5 +1,5 @@
-const CACHE = 'exercise-score-v1';
-const SHELL = ['./', 'index.html', 'app.js', 'engine.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png'];
+const CACHE = 'exercise-score-v2';
+const SHELL = ['./', 'index.html', 'app.js', 'engine.js', 'vendor/material.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)));
