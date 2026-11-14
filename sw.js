@@ -1,8 +1,9 @@
-const CACHE = 'exercise-score-v2';
+const CACHE = 'exercise-score-v3';
 const SHELL = ['./', 'index.html', 'app.js', 'engine.js', 'vendor/material.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png'];
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)));
+  // cache: 'reload' skips the browser's HTTP cache, so a new version never fills its cache with old files
+  e.waitUntil(caches.open(CACHE).then((c) => Promise.all(SHELL.map((u) => c.add(new Request(u, { cache: 'reload' }))))));
   self.skipWaiting();
 });
 
