@@ -12,7 +12,6 @@
 
   // Date ranges offered on the page. `months` counts back from today.
   const RANGES = [
-    { key: '2y', label: 'Last 2 years', months: 24 },
     { key: '1y', label: 'Last year', months: 12 },
     { key: '6m', label: 'Last 6 months', months: 6 },
     { key: '3m', label: 'Last 3 months', months: 3 },

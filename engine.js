@@ -329,19 +329,21 @@
     const w = new Map();
     for (const e of entries) {
       const k = mondayOf(e.date);
-      if (!w.has(k)) w.set(k, { week: k, cardio: 0, strength: 0, miles: 0 });
+      if (!w.has(k)) w.set(k, { week: k, cardio: 0, strength: 0, upper: 0, lower: 0, core: 0, miles: 0 });
       const o = w.get(k);
       o[e.kind] += e.credit;
+      if (e.kind === 'strength') o[e.tag] += e.credit;
       if (e.kind === 'cardio') o.miles += e.miles + e.walkMiles;
     }
     return [...w.values()].sort((a, b) => (a.week < b.week ? -1 : 1));
   }
 
   function totals(entries, fromIso, toIso) {
-    const t = { cardio: 0, strength: 0, miles: 0, walkMiles: 0, cardioDays: 0, strengthDays: new Set() };
+    const t = { cardio: 0, strength: 0, upper: 0, lower: 0, core: 0, miles: 0, walkMiles: 0, cardioDays: 0, strengthDays: new Set() };
     for (const e of entries) {
       if (e.date < fromIso || e.date > toIso) continue;
       t[e.kind] += e.credit;
+      if (e.kind === 'strength') t[e.tag] += e.credit;
       if (e.kind === 'cardio') { t.miles += e.miles; t.walkMiles += e.walkMiles; t.cardioDays++; } else t.strengthDays.add(e.date);
     }
     t.strengthDays = t.strengthDays.size;

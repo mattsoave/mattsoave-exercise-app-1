@@ -1,4 +1,4 @@
-const VERSION = 9;
+const VERSION = 10;
 const $ = (id) => document.getElementById(id);
 
 // Segmented button sets have no .value, so give each one a value (the selected button's data-value) and a change event.
@@ -93,10 +93,15 @@ function render() {
   $('yearTitle').textContent = `${year} so far`;
   $('yearTotal').textContent = `${f1(t.total)} credit`;
   const share = t.total ? (100 * t.cardio) / t.total : 0;
+  const pct = (v) => (t.total ? (100 * v) / t.total : 0);
   $('splitC').style.width = `${share}%`;
-  $('splitS').style.width = `${100 - share}%`;
+  $('splitU').style.width = `${pct(t.upper)}%`;
+  $('splitL').style.width = `${pct(t.lower)}%`;
+  $('splitK').style.width = `${pct(t.core)}%`;
   $('keyC').textContent = `Cardio ${f1(t.cardio)} (${f1(t.miles)} mi run` + (t.walkMiles ? `, ${f1(t.walkMiles)} mi walked` : '') + `, ${t.cardioDays} days)`;
-  $('keyS').textContent = `Strength ${f1(t.strength)} (${t.strengthDays} days)`;
+  $('keyU').textContent = `Upper ${f1(t.upper)}`;
+  $('keyL').textContent = `Lower ${f1(t.lower)}`;
+  $('keyK').textContent = `Core ${f1(t.core)} (strength total ${f1(t.strength)} over ${t.strengthDays} days)`;
 
   // Last 12 calendar weeks, including empty ones
   const byWeek = new Map(Engine.weekly(result.entries).map((w) => [w.week, w]));
@@ -105,12 +110,12 @@ function render() {
   const weeks = [];
   for (let i = 11; i >= 0; i--) {
     const k = Engine.isoFromDay(thisMonday - 7 * i);
-    weeks.push(byWeek.get(k) || { week: k, cardio: 0, strength: 0 });
+    weeks.push(byWeek.get(k) || { week: k, cardio: 0, strength: 0, upper: 0, lower: 0, core: 0 });
   }
   const max = Math.max(1, ...weeks.map((w) => w.cardio + w.strength));
   $('weeks').innerHTML = weeks.map((w) =>
     `<div class="w" title="${w.week}: ${f1(w.cardio + w.strength)}">` +
-    `<span class="c" style="height:${(100 * w.cardio) / max}%"></span><span class="s" style="height:${(100 * w.strength) / max}%"></span></div>`).join('');
+    ['cardio', 'upper', 'lower', 'core'].map((k) => `<span class="c-${k}" style="height:${(100 * w[k]) / max}%"></span>`).join('') + '</div>').join('');
   $('weekLabels').innerHTML = weeks.map((w) => `<span>${w.week.slice(5)}</span>`).join('');
 
   renderFresh();

@@ -65,18 +65,19 @@
   .card h2 { margin-bottom:10px; }
   .row { display:flex; gap:12px; flex-wrap:wrap; }
   .row > * { flex:1 1 120px; min-width:0; }
+  @media (max-width: 480px) { .row > * { flex-basis:100%; } } /* phones: one control per row */
   .hint { color:var(--md-sys-color-on-surface-variant); margin-top:10px; }
   .total { color:var(--md-sys-color-on-surface); }
   .split { display:flex; height:10px; border-radius:5px; overflow:hidden; margin:10px 0 8px; background:var(--md-sys-color-outline-variant); }
-  .split > span:first-child { background:var(--md-sys-color-primary); }
-  .split > span:last-child { background:var(--md-sys-color-tertiary); }
+  .c-cardio { background:var(--md-sys-color-primary); }
+  .c-upper { background:var(--md-sys-color-tertiary); }
+  .c-lower { background:var(--chart-lower); }
+  .c-core { background:var(--chart-core); }
   .key { color:var(--md-sys-color-on-surface-variant); }
   .dot { display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:4px; }
   .weeks { display:flex; align-items:flex-end; gap:4px; height:110px; margin-top:8px; }
   .weeks .w { flex:1; display:flex; flex-direction:column-reverse; height:100%; justify-content:flex-start; }
   .weeks .w > span { display:block; width:100%; }
-  .weeks .c { background:var(--md-sys-color-primary); }
-  .weeks .s { background:var(--md-sys-color-tertiary); }
   .weeklabels { display:flex; gap:4px; color:var(--md-sys-color-on-surface-variant); font-size:.65rem; }
   .weeklabels span { flex:1; text-align:center; overflow:hidden; }
   .fresh { display:grid; grid-template-columns:64px 1fr 44px; gap:10px 12px; align-items:center; }
@@ -127,9 +128,11 @@
     <section class="card">
       <h2 class="md-typescale-title-medium" id="yearTitle"></h2>
       <div class="total md-typescale-display-small" id="yearTotal"></div>
-      <div class="split"><span id="splitC"></span><span id="splitS"></span></div>
-      <div class="key md-typescale-body-medium"><span class="dot" style="background:var(--md-sys-color-primary)"></span><span id="keyC"></span></div>
-      <div class="key md-typescale-body-medium"><span class="dot" style="background:var(--md-sys-color-tertiary)"></span><span id="keyS"></span></div>
+      <div class="split"><span id="splitC" class="c-cardio"></span><span id="splitU" class="c-upper"></span><span id="splitL" class="c-lower"></span><span id="splitK" class="c-core"></span></div>
+      <div class="key md-typescale-body-medium"><span class="dot c-cardio"></span><span id="keyC"></span></div>
+      <div class="key md-typescale-body-medium"><span class="dot c-upper"></span><span id="keyU"></span></div>
+      <div class="key md-typescale-body-medium"><span class="dot c-lower"></span><span id="keyL"></span></div>
+      <div class="key md-typescale-body-medium"><span class="dot c-core"></span><span id="keyK"></span></div>
     </section>
 
     <section class="card">
@@ -148,8 +151,8 @@
     <section class="card">
       <h2 class="md-typescale-title-medium">Keeping it up</h2>
       <md-outlined-segmented-button-set id="decayView" aria-label="View">
-<md-outlined-segmented-button label="Combined" data-value="one" selected></md-outlined-segmented-button>
-<md-outlined-segmented-button label="Four charts" data-value="grid"></md-outlined-segmented-button>
+<md-outlined-segmented-button no-checkmark label="Combined" data-value="one" selected></md-outlined-segmented-button>
+<md-outlined-segmented-button no-checkmark label="Four charts" data-value="grid"></md-outlined-segmented-button>
 </md-outlined-segmented-button-set>
       <div class="dgrid" id="dGrid" hidden></div>
       <svg class="dchart" id="dChart" role="img" aria-label="How much recent work you are carrying in each of the four categories, over the last three weeks and the next week"></svg>
@@ -161,9 +164,9 @@
       <h2 class="md-typescale-title-medium">Preview a session</h2>
       <div class="row">
         <md-outlined-segmented-button-set id="type" aria-label="Type">
-<md-outlined-segmented-button label="Run" data-value="run" selected></md-outlined-segmented-button>
-<md-outlined-segmented-button label="Walk" data-value="walk"></md-outlined-segmented-button>
-<md-outlined-segmented-button label="Strength" data-value="strength"></md-outlined-segmented-button>
+<md-outlined-segmented-button no-checkmark label="Run" data-value="run" selected></md-outlined-segmented-button>
+<md-outlined-segmented-button no-checkmark label="Walk" data-value="walk"></md-outlined-segmented-button>
+<md-outlined-segmented-button no-checkmark label="Strength" data-value="strength"></md-outlined-segmented-button>
 </md-outlined-segmented-button-set>
         <md-outlined-text-field id="when" label="Date" type="date"></md-outlined-text-field>
       </div>
@@ -172,8 +175,8 @@
         <md-outlined-text-field id="mph" label="Speed (mph)" type="number" step="0.1" min="0" value="7.5"></md-outlined-text-field>
         <md-outlined-text-field id="rgrade" label="Incline %" type="number" step="0.5" min="0" value="0"></md-outlined-text-field>
         <md-outlined-segmented-button-set id="where" aria-label="Where">
-<md-outlined-segmented-button label="Treadmill" data-value="tm" selected></md-outlined-segmented-button>
-<md-outlined-segmented-button label="Outdoor" data-value="out"></md-outlined-segmented-button>
+<md-outlined-segmented-button no-checkmark label="Treadmill" data-value="tm" selected></md-outlined-segmented-button>
+<md-outlined-segmented-button no-checkmark label="Outdoor" data-value="out"></md-outlined-segmented-button>
 </md-outlined-segmented-button-set>
       </div>
       <div class="row" id="walkInputs" style="margin-top:12px" hidden>
@@ -183,9 +186,9 @@
       </div>
       <div class="row" id="strInputs" style="margin-top:12px" hidden>
         <md-outlined-segmented-button-set id="tag" aria-label="Muscle group">
-<md-outlined-segmented-button label="Upper" data-value="upper" selected></md-outlined-segmented-button>
-<md-outlined-segmented-button label="Lower" data-value="lower"></md-outlined-segmented-button>
-<md-outlined-segmented-button label="Core" data-value="core"></md-outlined-segmented-button>
+<md-outlined-segmented-button no-checkmark label="Upper" data-value="upper" selected></md-outlined-segmented-button>
+<md-outlined-segmented-button no-checkmark label="Lower" data-value="lower"></md-outlined-segmented-button>
+<md-outlined-segmented-button no-checkmark label="Core" data-value="core"></md-outlined-segmented-button>
 </md-outlined-segmented-button-set>
         <md-outlined-text-field id="sets" label="Sets" type="number" step="1" min="1" value="8"></md-outlined-text-field>
       </div>
@@ -198,11 +201,10 @@
     <h2 class="md-typescale-title-medium">Body weight</h2>
     <div class="row">
       <md-outlined-segmented-button-set id="wRange" aria-label="Date range">
-<md-outlined-segmented-button label="2 yr" data-value="2y"></md-outlined-segmented-button>
-<md-outlined-segmented-button label="1 yr" data-value="1y"></md-outlined-segmented-button>
-<md-outlined-segmented-button label="6 mo" data-value="6m"></md-outlined-segmented-button>
-<md-outlined-segmented-button label="3 mo" data-value="3m" selected></md-outlined-segmented-button>
-<md-outlined-segmented-button label="1 mo" data-value="1m"></md-outlined-segmented-button>
+<md-outlined-segmented-button no-checkmark label="1 yr" data-value="1y"></md-outlined-segmented-button>
+<md-outlined-segmented-button no-checkmark label="6 mo" data-value="6m"></md-outlined-segmented-button>
+<md-outlined-segmented-button no-checkmark label="3 mo" data-value="3m" selected></md-outlined-segmented-button>
+<md-outlined-segmented-button no-checkmark label="1 mo" data-value="1m"></md-outlined-segmented-button>
 </md-outlined-segmented-button-set>
     </div>
     <div class="slider md-typescale-body-medium">
