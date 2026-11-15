@@ -1,4 +1,4 @@
-const VERSION = 5;
+const VERSION = 6;
 const $ = (id) => document.getElementById(id);
 $('ver').textContent = VERSION;
 

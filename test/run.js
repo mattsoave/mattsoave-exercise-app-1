@@ -16,8 +16,14 @@ check('splitting a day into pieces gives the same credit',
   Math.abs(E.cardioCredit(5, 6, K) - (E.cardioCredit(5, 2, K) + E.cardioCredit(7, 4, K))) < 1e-9);
 check('credit is below face value when load is high', E.cardioCredit(10, 5, K) < 5);
 check('credit equals about face value when load is zero and amount is small', Math.abs(E.cardioCredit(0, 0.01, K) - 0.01) < 1e-3);
-check('pace factor is 1 at or below start and max at full',
-  E.paceFactor(6, E.DEFAULTS.cardio) === 1 && Math.abs(E.paceFactor(8.5, E.DEFAULTS.cardio) - 1.35) < 1e-9);
+const C = E.DEFAULTS.cardio;
+check('pace factor is exactly 1 at easy pace', Math.abs(E.paceFactor(C.easyMph, C) - 1) < 1e-12);
+check('pace factor keeps rising with speed, including past 100% heart-rate reserve',
+  [5, 6, 7, 8, 9, 10, 11].every((v, i, a) => i === 0 || E.paceFactor(v, C) > E.paceFactor(a[i - 1], C)));
+check('pace factor has no jumps (0.1 mph step changes it by less than 0.1)',
+  [5, 6.5, 8, 8.8, 9.5, 10.5].every((v) => Math.abs(E.paceFactor(v + 0.05, C) - E.paceFactor(v - 0.05, C)) < 0.1));
+check('8 mph is worth 1.5 to 1.9 easy miles per mile', E.paceFactor(8, C) > 1.5 && E.paceFactor(8, C) < 1.9);
+check('10 mph is worth 2.5 to 3.1 easy miles per mile', E.paceFactor(10, C) > 2.5 && E.paceFactor(10, C) < 3.1);
 const W = E.DEFAULTS.cardio;
 const hour = (mph, g) => E.walkPoints(60, mph, g, W);
 check('walk credit rises with speed and with incline', hour(2, 0) < hour(3, 0) && hour(3, 0) < hour(3.5, 0) && hour(3, 0) < hour(3, 0.05) && hour(3, 0.05) < hour(3, 0.1));
@@ -60,6 +66,8 @@ for (const [label, p] of [
   ['3 mi easy (6.3 mph)', E.previewRun(result, next, 3, 6.3, true)],
   ['3 mi fast (7.5 mph)', E.previewRun(result, next, 3, 7.5, true)],
   ['3 mi hard (8.0 mph)', E.previewRun(result, next, 3, 8.0, true)],
+  ['0.5 mi at 10 mph',     E.previewRun(result, next, 0.5, 10, true)],
+  ['2 mi at 10 mph',       E.previewRun(result, next, 2, 10, true)],
   ['7 mi easy (6.2 mph)', E.previewRun(result, next, 7, 6.2, true)],
   ['14 mi outdoor', E.previewRun(result, next, 14, 6.6, false)],
   ['walk 60 min, 2 mph', E.previewWalk(result, next, 60, 2, 0)],

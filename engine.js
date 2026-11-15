@@ -8,9 +8,14 @@
     cardio: {
       tau: 6,            // days. How fast recent cardio load fades (load falls to ~37% after 6 days).
       K: 12,             // run-equivalent miles. How much recent load halves the value of the next mile.
-      paceStart: 6.5,    // mph. Treadmill running at or below this earns no pace bonus.
-      paceFull: 8.0,     // mph. Treadmill running at or above this earns the full pace bonus.
-      paceBonus: 0.35,   // +35% credit at paceFull.
+      // Treadmill running is weighted by intensity, TRIMP-style (Banister): minutes x HRR x 0.64 x e^(1.92 x HRR),
+      // where HRR is the fraction of heart-rate reserve. With no heart-rate data, HRR is estimated from speed with
+      // a straight line through two of the owner's paces, and extrapolated past 100% for sprints.
+      easyMph: 6.0,      // mph. An easy run; one mile here is worth exactly one run-mile.
+      easyHRR: 0.65,     // estimated fraction of heart-rate reserve at easyMph.
+      hardMph: 8.0,      // mph. A hard 3-mile effort.
+      hardHRR: 0.90,     // estimated fraction of heart-rate reserve at hardMph.
+      trimpK: 1.92,      // exponent from Banister's TRIMP (1.92 is the published value for men). Higher favors speed more.
       baseMET: 2,        // walking effort below about 2 METs (ordinary moving around) earns nothing, ramped in smoothly.
       baseSmooth: 0.25,  // METs. Width of that ramp. Larger means a softer corner.
       refMph: 6.5,       // an easy run-mile at this speed is the yardstick for walking effort.
@@ -34,7 +39,7 @@
     'Treadmill 10mph': TREADMILL_RUN,
     'Treadmill HIIT': TREADMILL_RUN,
     'Treadmill Endurance': TREADMILL_RUN,
-    'Running (Outdoor)': { kind: 'run', treadmill: false }, // outdoor times may be elapsed, so no pace bonus
+    'Running (Outdoor)': { kind: 'run', treadmill: false }, // outdoor times may be elapsed, so scored as easy pace
     'Treadmill (Walking)': { kind: 'walk', treadmill: true },
     'Walking (Outside)': { kind: 'walk', treadmill: false },
   };
@@ -139,9 +144,20 @@
     return { days: [...days.values()].sort((a, b) => (a.date < b.date ? -1 : 1)), unmapped: [...unmapped] };
   }
 
+  // Estimated fraction of heart-rate reserve at a running speed.
+  function hrrAt(mph, c) {
+    return c.easyHRR + ((mph - c.easyMph) * (c.hardHRR - c.easyHRR)) / (c.hardMph - c.easyMph);
+  }
+  // TRIMP weight per minute.
+  function trimpPerMinute(hrr, c) {
+    const h = Math.max(0, hrr);
+    return h * 0.64 * Math.exp(c.trimpK * h);
+  }
+  // Run-miles per mile at this speed: TRIMP per mile, relative to an easy mile. Exactly 1 at easyMph.
   function paceFactor(mph, c) {
-    const x = (mph - c.paceStart) / (c.paceFull - c.paceStart);
-    return 1 + c.paceBonus * Math.min(1, Math.max(0, x));
+    if (!(mph > 0)) return 1;
+    const perMile = (v) => (60 / v) * trimpPerMinute(hrrAt(v, c), c);
+    return perMile(mph) / perMile(c.easyMph);
   }
 
   // Oxygen-cost formulas (ACSM). Speed in meters per minute, grade as a fraction. 1 MET = 3.5 ml/kg/min.
@@ -161,7 +177,7 @@
   // Climbing adds 4.5 x grade to the net oxygen cost of running (0.9 x speed x grade against 0.2 x speed).
   const elevationFactor = (grade, c) => 1 + c.elevationScale * 4.5 * grade;
 
-  // Run-equivalent miles for a set of segments: pace bonus for treadmill running, climb for runs, effort for walks.
+  // Run-equivalent miles for a set of segments: intensity weight for treadmill running, climb for runs, effort for walks.
   function cardioPoints(segments, c) {
     let p = 0;
     for (const s of segments) {
