@@ -239,6 +239,17 @@
     <input id="file" type="file" accept=".csv,text/*,application/*" hidden>
     <p class="hint md-typescale-body-medium" id="importNote">Export from FitNotes and share the CSV to this app, or pick it here. Workout and body tracker exports both work, and each is kept on this device.</p>
   </section>
+
+  <section class="card">
+    <h2 class="md-typescale-title-medium">Feedback</h2>
+    <md-outlined-text-field id="feedback" type="textarea" rows="6" label="Notes for the next round of changes"></md-outlined-text-field>
+    <div class="actions" style="margin-top:12px">
+      <md-filled-tonal-button id="fbShare" hidden>Share</md-filled-tonal-button>
+      <md-filled-tonal-button id="fbCopy">Copy</md-filled-tonal-button>
+      <md-filled-tonal-button id="fbClear">Clear</md-filled-tonal-button>
+    </div>
+    <p class="hint md-typescale-body-small" id="fbNote">Saved on this device as you type. Share or copy adds the app version and date.</p>
+  </section>
 </main>
 <script src="engine.js" defer></script>
 <script src="weight.js" defer></script>

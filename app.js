@@ -1,4 +1,4 @@
-const VERSION = 12;
+const VERSION = 13;
 const $ = (id) => document.getElementById(id);
 
 // Segmented button sets have no .value, so give each one a value (the selected button's data-value) and a change event.
@@ -304,6 +304,30 @@ $('decayView').addEventListener('change', () => { localStorage.setItem('decayVie
 $('decayRange').value = localStorage.getItem('decayRange') || '1m';
 $('decayRange').addEventListener('change', () => { localStorage.setItem('decayRange', $('decayRange').value); if (result) renderDecay(); });
 $('wSpan').addEventListener('input', renderWeight);
+
+// ---- Feedback for Kiro ----
+// Kept in localStorage so it survives reloads and app restarts. Export adds the version and date so Kiro knows which build it's about.
+const fb = $('feedback');
+fb.value = localStorage.getItem('feedback') || '';
+fb.addEventListener('input', () => localStorage.setItem('feedback', fb.value));
+const fbText = () => `Exercise score feedback (version ${VERSION}, ${todayIso()})\n\n${fb.value.trim()}\n`;
+const fbSay = (msg) => { $('fbNote').textContent = msg; };
+if (navigator.share) $('fbShare').hidden = false;
+$('fbShare').addEventListener('click', async () => {
+  if (!fb.value.trim()) return fbSay('Nothing to share yet.');
+  try { await navigator.share({ title: 'Exercise score feedback', text: fbText() }); } catch (e) { /* closed the share sheet */ }
+});
+$('fbCopy').addEventListener('click', async () => {
+  if (!fb.value.trim()) return fbSay('Nothing to copy yet.');
+  try { await navigator.clipboard.writeText(fbText()); fbSay('Copied. Paste it into a Kiro chat.'); }
+  catch (e) { fbSay('Copy failed. Select the text and copy it by hand.'); }
+});
+$('fbClear').addEventListener('click', () => {
+  if (!fb.value || !confirm('Clear all feedback? Export it first if you still need it.')) return;
+  fb.value = '';
+  localStorage.removeItem('feedback');
+  fbSay('Cleared.');
+});
 
 // ---- Import paths ----
 $('pick').addEventListener('click', () => $('file').click());
