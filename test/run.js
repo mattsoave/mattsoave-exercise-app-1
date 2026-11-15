@@ -16,6 +16,9 @@ check('splitting a day into pieces gives the same credit',
   Math.abs(E.cardioCredit(5, 6, K) - (E.cardioCredit(5, 2, K) + E.cardioCredit(7, 4, K))) < 1e-9);
 check('credit is below face value when load is high', E.cardioCredit(10, 5, K) < 5);
 check('credit equals about face value when load is zero and amount is small', Math.abs(E.cardioCredit(0, 0.01, K) - 0.01) < 1e-3);
+const commaRows = E.parseCsv('Date,Exercise,Category,Weight,Weight Unit,Reps,Distance,Distance Unit,Time,Comment\n2026-03-13,Push-ups, Decline,Chest,0.0,lbs,20,,,,"a, b"\n');
+check('an unquoted comma in an exercise name stays in the name, and later columns line up',
+  commaRows.length === 1 && commaRows[0].Exercise === 'Push-ups, Decline' && commaRows[0].Category === 'Chest' && commaRows[0].Reps === '20' && commaRows[0].Comment === 'a, b');
 const C = E.DEFAULTS.cardio;
 check('pace factor is exactly 1 at easy pace', Math.abs(E.paceFactor(C.easyMph, C) - 1) < 1e-12);
 check('pace factor keeps rising with speed, including past 100% heart-rate reserve',

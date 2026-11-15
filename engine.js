@@ -84,7 +84,14 @@
     if (field !== '' || row.length) { row.push(field); rows.push(row); }
     if (!rows.length) return [];
     const head = rows[0].map((h) => h.trim());
-    return rows.slice(1).map((r) => Object.fromEntries(head.map((h, i) => [h, r[i] === undefined ? '' : r[i]])));
+    // FitNotes does not quote an exercise name that contains a comma ("Push-ups, Decline"), so that row has
+    // extra columns. Merge the extras back into the name. (Comments are quoted, so commas there are fine.)
+    const ex = head.indexOf('Exercise');
+    return rows.slice(1).map((r) => {
+      const extra = r.length - head.length;
+      if (ex >= 0 && extra > 0) r = [...r.slice(0, ex), r.slice(ex, ex + extra + 1).join(','), ...r.slice(ex + extra + 1)];
+      return Object.fromEntries(head.map((h, i) => [h, r[i] === undefined ? '' : r[i]]));
+    });
   }
 
   // Climb in vertical feet from a FitNotes comment. Accepts "calories/vfeet" (84/155), "?/555", "/555",
