@@ -82,6 +82,11 @@
   .weeklabels span { flex:1; text-align:center; overflow:hidden; }
   .fresh { display:grid; grid-template-columns:64px 1fr 44px; gap:10px 12px; align-items:center; }
   .fresh md-linear-progress { width:100%; }
+  .fresh md-linear-progress { --md-linear-progress-active-indicator-color:var(--bar); background:none; }
+  .fresh .c-cardio { --bar:var(--md-sys-color-primary); }
+  .fresh .c-upper { --bar:var(--md-sys-color-tertiary); }
+  .fresh .c-lower { --bar:var(--chart-lower); }
+  .fresh .c-core { --bar:var(--chart-core); }
   .result { margin-top:14px; }
   .actions { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
   md-outlined-text-field, md-outlined-select, md-outlined-segmented-button-set { width:100%; }
@@ -98,6 +103,7 @@
   .dchart .ln { fill:none; stroke-width:2.2; stroke-linejoin:round; stroke-linecap:round; }
   .dchart .ln.proj { stroke-dasharray:4 3; }
   .dgrid { display:grid; grid-template-columns:1fr 1fr; gap:12px 8px; margin-top:12px; }
+  .dgrid.one { grid-template-columns:1fr; }
   .dgrid .dchart { margin-top:2px; }
   .dlegend { display:flex; flex-wrap:wrap; gap:4px 14px; margin-top:8px; }
   .slider { display:flex; align-items:center; gap:12px; margin-top:12px; }
@@ -153,6 +159,12 @@
       <md-outlined-segmented-button-set id="decayView" aria-label="View">
 <md-outlined-segmented-button no-checkmark label="Combined" data-value="one" selected></md-outlined-segmented-button>
 <md-outlined-segmented-button no-checkmark label="Four charts" data-value="grid"></md-outlined-segmented-button>
+</md-outlined-segmented-button-set>
+<md-outlined-segmented-button-set id="decayRange" aria-label="Time span" style="margin-top:8px">
+<md-outlined-segmented-button no-checkmark label="2 wk" data-value="2w"></md-outlined-segmented-button>
+<md-outlined-segmented-button no-checkmark label="1 mo" data-value="1m" selected></md-outlined-segmented-button>
+<md-outlined-segmented-button no-checkmark label="3 mo" data-value="3m"></md-outlined-segmented-button>
+<md-outlined-segmented-button no-checkmark label="1 yr" data-value="1y"></md-outlined-segmented-button>
 </md-outlined-segmented-button-set>
       <div class="dgrid" id="dGrid" hidden></div>
       <svg class="dchart" id="dChart" role="img" aria-label="How much recent work you are carrying in each of the four categories, over the last three weeks and the next week"></svg>
