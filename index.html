@@ -110,7 +110,17 @@
   .slider input { flex:1; accent-color:var(--md-sys-color-primary); }
   .slider output { min-width:2.5em; text-align:right; }
   [hidden] { display:none !important; }
+  /* The Material type styles load with vendor/material.js, after the first paint. Hold the page back until then so
+     text never shows in the wrong font. The timeout in the script below reveals it anyway if the bundle fails. */
+  html:not(.ready) main { visibility:hidden; }
 </style>
+<script>
+  (function () {
+    var show = function () { requestAnimationFrame(function () { document.documentElement.classList.add('ready'); }); };
+    var timeout = new Promise(function (r) { setTimeout(r, 1500); });
+    Promise.race([customElements.whenDefined('md-outlined-segmented-button-set'), timeout]).then(show);
+  })();
+</script>
 <script type="module" src="vendor/material.js"></script>
 </head>
 <body>
@@ -119,16 +129,6 @@
     <h1 class="md-typescale-headline-medium">Exercise score</h1>
     <p class="md-typescale-body-small">Version <span id="ver"></span> &middot; <span id="net">checking...</span> &middot; <span id="mode">browser tab</span></p>
   </div>
-
-  <section class="card">
-    <h2 class="md-typescale-title-medium">Import</h2>
-    <div class="actions">
-      <md-filled-tonal-button id="pick">Choose CSV file</md-filled-tonal-button>
-      <md-filled-button id="install" hidden>Install app</md-filled-button>
-    </div>
-    <input id="file" type="file" accept=".csv,text/*,application/*" hidden>
-    <p class="hint md-typescale-body-medium" id="importNote">Export from FitNotes and share the CSV to this app, or pick it here. Workout and body tracker exports both work, and each is kept on this device.</p>
-  </section>
 
   <div id="data" hidden>
     <section class="card">
@@ -228,6 +228,16 @@
     <div class="result md-typescale-title-medium" id="wSummary"></div>
     <svg class="wchart" id="wChart" role="img" aria-label="Body weight readings with a smoothed trend line"></svg>
     <p class="hint md-typescale-body-small" id="wNote"></p>
+  </section>
+
+  <section class="card">
+    <h2 class="md-typescale-title-medium">Import</h2>
+    <div class="actions">
+      <md-filled-tonal-button id="pick">Choose CSV file</md-filled-tonal-button>
+      <md-filled-button id="install" hidden>Install app</md-filled-button>
+    </div>
+    <input id="file" type="file" accept=".csv,text/*,application/*" hidden>
+    <p class="hint md-typescale-body-medium" id="importNote">Export from FitNotes and share the CSV to this app, or pick it here. Workout and body tracker exports both work, and each is kept on this device.</p>
   </section>
 </main>
 <script src="engine.js" defer></script>

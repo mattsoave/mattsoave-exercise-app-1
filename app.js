@@ -1,4 +1,4 @@
-const VERSION = 11;
+const VERSION = 12;
 const $ = (id) => document.getElementById(id);
 
 // Segmented button sets have no .value, so give each one a value (the selected button's data-value) and a change event.
