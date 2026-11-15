@@ -21,14 +21,17 @@
       refMph: 6.5,       // an easy run-mile at this speed is the yardstick for walking effort.
       elevationScale: 1, // 1 = full climbing cost from the formula; 0 ignores incline and elevation.
       maxGrade: 0.15,    // average grades above this are treated as typos or GPS noise.
+      bodyLb: 150,       // pounds. Used for the weight vest when no body tracker export is imported.
     },
     strength: {
-      tagTau: 1.5,       // days. How fast a muscle group (upper/lower/core) recovers.
-      tagK: 3,           // points. Recent load in one group that halves credit for that group.
-      allTau: 5,         // days. How fast overall strength load fades.
-      allK: 6,           // points. Overall load that halves credit.
-      setsForMax: 12,    // sets in one group on one day that count as a "heavy" session.
-      maxPoints: 3,      // points for a heavy session (light is about 1).
+      tagTau: 7,         // days. How fast recent work in one muscle group (upper/lower/core) fades.
+      tagK: 10,          // points. Recent load in one group that halves credit for that group.
+      allTau: 14,        // days. How fast overall strength load fades.
+      allK: 25,          // points. Overall load that halves credit.
+      pointsPerSet: 0.25, // points for one normal set.
+      exerciseSets: 4,   // sets. Extra sets of the same exercise on the same day count less, smoothly: with 4, ten sets count as about 5.6.
+      failBonus: 0.15,   // extra for a set marked "x" in the comment (couldn't do another rep).
+      nearBonus: 0.05,   // extra for a set marked "~x" (very close).
     },
   };
 
@@ -50,6 +53,8 @@
     'Calf Raise': 'lower',
     'Leg Raises': 'core',
     'Hip Bridge': 'lower',
+    'Glute Bridge': 'lower',
+    'Glute Bridge Hold': 'lower',
     'Reverse Plank': 'core',
     'Lunge With Dumbbells': 'lower',
     'Bicep To Standing Shoulder Press': 'upper',
@@ -105,6 +110,20 @@
     return grade === null ? 0 : Math.min(maxGrade, Math.max(0, grade));
   }
 
+  // Weight vest pounds from the third number of "calories/vfeet/vest" (for example "?/261/20" or "?//20").
+  function vestFromComment(comment) {
+    const m = String(comment || '').match(/^\s*(?:\d+|\?)?\s*\/\s*\d*\s*\/\s*(\d+(?:\.\d+)?)/);
+    return m ? Number(m[1]) : 0;
+  }
+
+  // Effort mark on a strength set: "x" = couldn't do another rep, "~x" = very close.
+  function effortWeight(comment, s) {
+    const c = String(comment || '').trim().toLowerCase();
+    if (/~\s*x\b/.test(c)) return 1 + s.nearBonus;
+    if (/(^|[^a-z])x$/.test(c)) return 1 + s.failBonus;
+    return 1;
+  }
+
   function dayNumber(iso) {
     const [y, m, d] = iso.split('-').map(Number);
     return Math.round(Date.UTC(y, m - 1, d) / 86400000);
@@ -128,7 +147,8 @@
     const days = new Map();
     const unmapped = new Set();
     const get = (date) => {
-      if (!days.has(date)) days.set(date, { date, segments: [], sets: { upper: 0, lower: 0, core: 0 } });
+      // sets[tag] maps each exercise name to the comments of its sets that day.
+      if (!days.has(date)) days.set(date, { date, segments: [], sets: { upper: new Map(), lower: new Map(), core: new Map() } });
       return days.get(date);
     };
     for (const r of rows) {
@@ -140,13 +160,16 @@
         const secs = seconds(r.Time);
         if (!(miles > 0) || !(secs > 0)) continue;
         const grade = climbFromComment(r.Comment, miles, DEFAULTS.cardio.maxGrade);
-        get(date).segments.push({ miles, minutes: secs / 60, mph: miles / (secs / 3600), grade, ...cardio });
+        get(date).segments.push({ miles, minutes: secs / 60, mph: miles / (secs / 3600), grade, vestLb: vestFromComment(r.Comment), ...cardio });
         continue;
       }
       if (r.Category.trim().toLowerCase() === 'cardio') continue; // e.g. rowing machine, not scored yet
       const tag = tagFor(r);
       if (!tag) { unmapped.add(r.Exercise.trim()); continue; }
-      get(date).sets[tag] += 1;
+      const byExercise = get(date).sets[tag];
+      const name = r.Exercise.trim();
+      if (!byExercise.has(name)) byExercise.set(name, []);
+      byExercise.get(name).push(r.Comment);
     }
     return { days: [...days.values()].sort((a, b) => (a.date < b.date ? -1 : 1)), unmapped: [...unmapped] };
   }
@@ -174,9 +197,10 @@
   const smoothPos = (x, w) => w * Math.log(1 + Math.exp(x / w)); // smooth version of max(0, x)
 
   // Run-miles of credit for a walk: effort above the baseline, in MET-minutes, divided by the
-  // effort of one easy run-mile.
-  function walkPoints(minutes, mph, grade, c) {
-    const effort = smoothPos(walkMET(mph, grade * c.elevationScale) - c.baseMET, c.baseSmooth);
+  // effort of one easy run-mile. A weight vest scales the walking cost by total carried weight over body weight.
+  function walkPoints(minutes, mph, grade, c, vestLb) {
+    const load = 1 + (vestLb || 0) / c.bodyLb;
+    const effort = smoothPos(walkMET(mph, grade * c.elevationScale) * load - c.baseMET, c.baseSmooth);
     const perRunMile = (60 / c.refMph) * (runMET(c.refMph) - c.baseMET);
     return (effort * minutes) / perRunMile;
   }
@@ -188,7 +212,7 @@
   function cardioPoints(segments, c) {
     let p = 0;
     for (const s of segments) {
-      if (s.kind === 'walk') p += walkPoints(s.minutes, s.mph, s.grade || 0, c);
+      if (s.kind === 'walk') p += walkPoints(s.minutes, s.mph, s.grade || 0, c, s.vestLb);
       else p += s.miles * (s.treadmill ? paceFactor(s.mph, c) : 1) * elevationFactor(s.grade || 0, c);
     }
     return p;
@@ -200,8 +224,31 @@
     return K * Math.log((K + L + p) / (K + L));
   }
 
-  function strengthPoints(sets, s) {
-    return (Math.min(sets, s.setsForMax) / s.setsForMax) * s.maxPoints;
+  // Effective sets for n sets of one exercise in a day: a smooth curve where the first set counts 1 and each
+  // extra set counts a bit less. Effort marks (x, ~x) scale the result by the average effort weight.
+  function effectiveSets(comments, s) {
+    const n = comments.length;
+    if (!n) return 0;
+    const a = s.exerciseSets;
+    const avgEffort = comments.reduce((t, c) => t + effortWeight(c, s), 0) / n;
+    return (Math.log(1 + n / a) / Math.log(1 + 1 / a)) * avgEffort;
+  }
+
+  // Points for one muscle group's day: the map from exercise name to set comments.
+  function strengthPoints(byExercise, s) {
+    let e = 0;
+    for (const comments of byExercise.values()) e += effectiveSets(comments, s);
+    return e * s.pointsPerSet;
+  }
+
+  // Credit for p strength points given the group's recent load Lt and the overall load La. The value of each
+  // point is Kt/(Kt+Lt) x Ka/(Ka+La), and both loads rise as points are added. Integrating that over the points
+  // makes the total the same however a day is split, so a day after a rest always earns at least as much.
+  function strengthCredit(Lt, La, p, s) {
+    const A = s.tagK + Lt, B = s.allK + La;
+    if (!(p > 0)) return 0;
+    if (Math.abs(B - A) < 1e-9) return (s.tagK * s.allK * p) / (A * (A + p));
+    return ((s.tagK * s.allK) / (B - A)) * Math.log(((A + p) * B) / (A * (B + p)));
   }
 
   function freshState() {
@@ -256,18 +303,18 @@
         state.cardio += p;
       }
 
-      const start = { ...state };
       let total = 0;
       for (const tag of TAGS) {
-        const sets = d.sets[tag];
-        if (!sets) continue;
-        const pts = strengthPoints(sets, cfg.strength);
-        const credit = pts * strengthMultiplier(start, tag, cfg);
+        const byExercise = d.sets[tag];
+        if (!byExercise.size) continue;
+        const pts = strengthPoints(byExercise, cfg.strength);
+        const credit = strengthCredit(state[tag], state.strength, pts, cfg.strength);
+        const sets = [...byExercise.values()].reduce((a, c) => a + c.length, 0);
         entries.push({ date: d.date, kind: 'strength', tag, sets, raw: pts, credit });
         state[tag] += pts;
+        state.strength += pts; // each group adds to the overall load before the next group is scored
         total += pts;
       }
-      state.strength += total;
       history.push({ ...state });
     }
     return { entries, state, history, unmapped, cfg };
@@ -283,14 +330,18 @@
   function previewRun(result, dateIso, miles, mph, treadmill, gradePct) {
     return previewCardio(result, dateIso, { kind: 'run', miles, mph, treadmill, grade: (gradePct || 0) / 100 });
   }
-  function previewWalk(result, dateIso, minutes, mph, gradePct) {
-    return previewCardio(result, dateIso, { kind: 'walk', miles: (mph * minutes) / 60, minutes, mph, grade: (gradePct || 0) / 100 });
+  function previewWalk(result, dateIso, minutes, mph, gradePct, vestLb) {
+    return previewCardio(result, dateIso, { kind: 'walk', miles: (mph * minutes) / 60, minutes, mph, grade: (gradePct || 0) / 100, vestLb: vestLb || 0 });
   }
-  function previewStrength(result, dateIso, tag, sets) {
+  // A strength session of `sets` sets in one group, spread evenly over `exercises` exercises.
+  function previewStrength(result, dateIso, tag, sets, exercises) {
     const cfg = result.cfg;
     const st = decay(result.state, dayNumber(dateIso), cfg);
-    const pts = strengthPoints(sets, cfg.strength);
-    return { raw: pts, credit: pts * strengthMultiplier(st, tag, cfg) };
+    const k = Math.max(1, Math.round(exercises || 1));
+    const byExercise = new Map();
+    for (let i = 0; i < k; i++) byExercise.set(i, new Array(Math.floor(sets / k) + (i < sets % k ? 1 : 0)).fill(''));
+    const pts = strengthPoints(byExercise, cfg.strength);
+    return { raw: pts, credit: strengthCredit(st[tag], st.strength, pts, cfg.strength) };
   }
 
   // Value of the next session of each type (1 = fully rested) at the end of each day from startIso to endIso.
@@ -353,7 +404,7 @@
 
   const api = {
     DEFAULTS, TAGS, parseCsv, buildDays, score, previewRun, previewWalk, previewStrength, freshnessSeries, walkPoints, walkMET, climbFromComment, freshness, weekly, totals,
-    cardioCredit, paceFactor, isoFromDay, dayNumber,
+    cardioCredit, paceFactor, isoFromDay, dayNumber, vestFromComment, effortWeight, effectiveSets, strengthCredit,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Engine = api;

@@ -1,4 +1,4 @@
-const VERSION = 13;
+const VERSION = 14;
 const $ = (id) => document.getElementById(id);
 
 // Segmented button sets have no .value, so give each one a value (the selected button's data-value) and a change event.
@@ -16,8 +16,21 @@ function segmented(id) {
     el.dispatchEvent(new Event('change'));
   });
 }
-['type', 'where', 'tag', 'wRange', 'decayView', 'decayRange'].forEach(segmented);
+['type', 'where', 'tag', 'wRange', 'decayView', 'decayRange', 'toolMode'].forEach(segmented);
 $('ver').textContent = VERSION;
+
+// ---- Tabs ----
+const TABS = ['credit', 'tools', 'weight'];
+function showTab(name) {
+  TABS.forEach((t) => { $(`tab-${t}`).hidden = t !== name; });
+  localStorage.setItem('tab', name);
+}
+customElements.whenDefined('md-tabs').then(() => {
+  const saved = TABS.indexOf(localStorage.getItem('tab'));
+  $('tabs').activeTabIndex = saved < 0 ? 0 : saved;
+  showTab(TABS[$('tabs').activeTabIndex]);
+});
+$('tabs').addEventListener('change', () => showTab(TABS[$('tabs').activeTabIndex]));
 
 // ---- Status, install ----
 function setNet() {
@@ -68,19 +81,28 @@ function importWeight(text, name) {
   localStorage.setItem('weightCsvName', name);
   localStorage.setItem('weightCsvAt', new Date().toISOString());
   loadWeight();
+  load(); // the weight vest uses the latest body weight
   $('importNote').textContent = `${name}: ${weights.length} weight readings imported.`;
+}
+
+// Latest body weight in pounds, for the weight vest. Undefined without a body tracker import.
+function latestPounds() {
+  if (!weights.length) return undefined;
+  return weights.reduce((a, b) => (b.t > a.t ? b : a)).pounds;
 }
 
 function load() {
   const text = localStorage.getItem('csv');
   if (!text) return;
-  result = Engine.score(text);
+  const lb = latestPounds();
+  result = Engine.score(text, lb ? { cardio: { bodyLb: lb } } : undefined);
   const last = result.entries[result.entries.length - 1].date;
   const at = (localStorage.getItem('csvAt') || '').slice(0, 10);
   $('importNote').textContent =
     `${localStorage.getItem('csvName') || 'CSV'}: ${result.entries.length} sessions, latest ${last}, imported ${at}.` +
     (result.unmapped.length ? ` Not scored (unknown muscle group): ${result.unmapped.join(', ')}.` : '');
   $('data').hidden = false;
+  $('noData').hidden = true;
   if (!$('when').value) $('when').value = todayIso();
   render();
 }
@@ -211,20 +233,20 @@ function renderPreview() {
     p = Engine.previewRun(result, date, miles, mph, $('where').value === 'tm', grade);
     label = `${miles} mi at ${mph} mph` + (grade ? `, ${grade}% incline` : '');
   } else if (type === 'walk') {
-    const min = parseFloat($('wmin').value), mph = parseFloat($('wmph').value), grade = parseFloat($('wgrade').value) || 0;
+    const min = parseFloat($('wmin').value), mph = parseFloat($('wmph').value), grade = parseFloat($('wgrade').value) || 0, vest = parseFloat($('wvest').value) || 0;
     if (!(min > 0) || !(mph > 0)) { $('preview').textContent = ''; return; }
-    p = Engine.previewWalk(result, date, min, mph, grade);
-    label = `Walk ${min} min at ${mph} mph` + (grade ? `, ${grade}% incline` : '');
+    p = Engine.previewWalk(result, date, min, mph, grade, vest);
+    label = `Walk ${min} min at ${mph} mph` + (grade ? `, ${grade}% incline` : '') + (vest ? `, ${vest} lb vest` : '');
   } else {
-    const sets = parseFloat($('sets').value);
+    const sets = parseFloat($('sets').value), ex = parseFloat($('exercises').value) || 1;
     if (!(sets > 0)) { $('preview').textContent = ''; return; }
-    p = Engine.previewStrength(result, date, $('tag').value, sets);
-    label = `${sets} sets, ${$('tag').value}`;
+    p = Engine.previewStrength(result, date, $('tag').value, sets, ex);
+    label = `${sets} sets of ${Math.round(ex)} exercise${Math.round(ex) === 1 ? '' : 's'}, ${$('tag').value}`;
   }
   $('preview').textContent = `${label}: face value ${f1(p.raw)}, credit ${f1(p.credit)} (${Math.round((100 * p.credit) / p.raw)}%)`;
 }
 
-['type', 'when', 'miles', 'mph', 'rgrade', 'where', 'wmin', 'wmph', 'wgrade', 'tag', 'sets'].forEach((id) => ['input', 'change'].forEach((ev) => $(id).addEventListener(ev, () => {
+['type', 'when', 'miles', 'mph', 'rgrade', 'where', 'wmin', 'wmph', 'wgrade', 'wvest', 'tag', 'sets', 'exercises'].forEach((id) => ['input', 'change'].forEach((ev) => $(id).addEventListener(ev, () => {
   if (id === 'type') {
     const t = $('type').value;
     $('runInputs').hidden = t !== 'run';
@@ -242,6 +264,7 @@ function loadWeight() {
   const text = localStorage.getItem('weightCsv');
   weights = text ? Weight.parseWeights(text) : [];
   $('weightCard').hidden = !weights.length;
+  $('noWeight').hidden = !!weights.length;
   if (weights.length) renderWeight();
 }
 
@@ -346,7 +369,7 @@ async function takeSharedFile() {
   await cache.delete('shared-file');
 }
 
-load();
 loadWeight();
+load();
 takeSharedFile();
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');

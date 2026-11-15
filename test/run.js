@@ -43,6 +43,29 @@ check('climb is capped at maxGrade', E.climbFromComment('0/99999', 1, 0.15) === 
 const base = E.score('Date,Exercise,Category,Weight,Weight Unit,Reps,Distance,Distance Unit,Time,Comment\n2026-01-01,Home Treadmill,Cardio,,,,3,mi,0:30:00,\n');
 check('a run with climb earns more than the same run flat', E.previewRun(base, '2026-01-02', 3, 6, true, 3).raw > E.previewRun(base, '2026-01-02', 3, 6, true, 0).raw);
 check('dates round-trip', E.isoFromDay(E.dayNumber('2026-03-24')) === '2026-03-24');
+
+// Strength
+const S = E.DEFAULTS.strength;
+const sets = (n, c = '') => new Array(n).fill(c);
+check('one plain set counts exactly 1', Math.abs(E.effectiveSets(sets(1), S) - 1) < 1e-12);
+check('extra sets of one exercise count less, smoothly, with no cap',
+  [1, 2, 3, 5, 10, 20].every((n, i, a) => i === 0 || (E.effectiveSets(sets(n), S) > E.effectiveSets(sets(a[i - 1]), S) && E.effectiveSets(sets(n), S) < n)));
+check('ten sets of one exercise count as 4.5 to 6.5', E.effectiveSets(sets(10), S) > 4.5 && E.effectiveSets(sets(10), S) < 6.5);
+check('x earns more than ~x, which earns more than no mark', E.effectiveSets(['X'], S) > E.effectiveSets(['~x'], S) && E.effectiveSets(['~x'], S) > E.effectiveSets([''], S));
+check('effort marks: x, X, -x, ~x, ,~x', E.effortWeight('X', S) === 1 + S.failBonus && E.effortWeight('-x', S) === 1 + S.failBonus &&
+  E.effortWeight('~x', S) === 1 + S.nearBonus && E.effortWeight(',~x', S) === 1 + S.nearBonus && E.effortWeight('box', S) === 1);
+check('splitting a strength day within the day gives the same credit',
+  Math.abs(E.strengthCredit(1, 2, 3, S) - (E.strengthCredit(1, 2, 1, S) + E.strengthCredit(2, 3, 2, S))) < 1e-9);
+const sameDay = E.strengthCredit(0, 0, 3, S);
+const twoDays = E.strengthCredit(0, 0, 1.5, S) + E.strengthCredit(1.5 * Math.exp(-1 / S.tagTau), 1.5 * Math.exp(-1 / S.allTau), 1.5, S);
+check('half on each of two days earns slightly more than all on one day', twoDays > sameDay && twoDays < sameDay * 1.05);
+check('strength credit with no load is close to face value for a small amount', Math.abs(E.strengthCredit(0, 0, 0.01, S) - 0.01) < 1e-4);
+
+// Weight vest
+check('vest parsing: calories/vfeet/vest', E.vestFromComment('?/261/20') === 20 && E.vestFromComment('?//20') === 20 && E.vestFromComment('84/155/12.5') === 12.5);
+check('vest parsing: none without a third number', ['?/261', '84/155', '', 'x'].every((c) => E.vestFromComment(c) === 0));
+check('climb still parses with a vest number after it', Math.abs(E.climbFromComment('?/261/20', 1, 0.5) - 261 / 5280) < 1e-9);
+check('a vest walk earns more, and more than 14% for 20 lb at 150 lb', E.walkPoints(60, 3, 0, W, 20) > 1.14 * E.walkPoints(60, 3, 0, W, 0));
 check('weeks start on Monday', E.weekly([{ date: '2026-11-14', kind: 'cardio', credit: 1, miles: 1 }])[0].week === '2026-11-09');
 
 console.log(`\n${entries.length} sessions scored. Unmapped exercises: ${result.unmapped.join(', ') || 'none'}`);
@@ -77,9 +100,11 @@ for (const [label, p] of [
   ['walk 60 min, 3 mph', E.previewWalk(result, next, 60, 3, 0)],
   ['walk 60 min, 3.5 mph', E.previewWalk(result, next, 60, 3.5, 0)],
   ['walk 45 min, 3 mph 10%', E.previewWalk(result, next, 45, 3, 10)],
+  ['walk 60 min, 3.5, 20 lb', E.previewWalk(result, next, 60, 3.5, 0, 20)],
   ['3 mi easy, 2% incline', E.previewRun(result, next, 3, 6.3, true, 2)],
-  ['upper, 8 sets', E.previewStrength(result, next, 'upper', 8)],
-  ['lower, 8 sets', E.previewStrength(result, next, 'lower', 8)],
+  ['upper, 8 sets / 3 ex', E.previewStrength(result, next, 'upper', 8, 3)],
+  ['lower, 8 sets / 3 ex', E.previewStrength(result, next, 'lower', 8, 3)],
+  ['upper, 10 sets / 1 ex', E.previewStrength(result, next, 'upper', 10, 1)],
 ]) console.log(`${label.padEnd(22)} face ${f(p.raw).padStart(5)}  credit ${f(p.credit).padStart(5)}`);
 
 if (failed) { console.error(`\n${failed} check(s) failed`); process.exit(1); }

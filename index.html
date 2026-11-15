@@ -110,6 +110,9 @@
   .slider input { flex:1; accent-color:var(--md-sys-color-primary); }
   .slider output { min-width:2.5em; text-align:right; }
   [hidden] { display:none !important; }
+  md-tabs { margin:0 -16px 12px; background:var(--md-sys-color-surface); position:sticky; top:0; z-index:1; }
+  .clock { text-align:center; margin:20px 0 4px; font-variant-numeric:tabular-nums; }
+  .clockstatus { text-align:center; min-height:1.5em; margin-bottom:12px; color:var(--md-sys-color-on-surface-variant); }
   /* The Material type styles load with vendor/material.js, after the first paint. Hold the page back until then so
      text never shows in the wrong font. The timeout in the script below reveals it anyway if the bundle fails. */
   html:not(.ready) main { visibility:hidden; }
@@ -130,6 +133,16 @@
     <p class="md-typescale-body-small">Version <span id="ver"></span> &middot; <span id="net">checking...</span> &middot; <span id="mode">browser tab</span></p>
   </div>
 
+  <md-tabs id="tabs" aria-label="Sections">
+    <md-primary-tab data-tab="credit">Credit</md-primary-tab>
+    <md-primary-tab data-tab="tools">Tools</md-primary-tab>
+    <md-primary-tab data-tab="weight">Weight</md-primary-tab>
+  </md-tabs>
+
+  <div id="tab-credit" class="panel">
+  <section class="card" id="noData">
+    <p class="md-typescale-body-medium">Import a FitNotes workout export below to see your credit.</p>
+  </section>
   <div id="data" hidden>
     <section class="card">
       <h2 class="md-typescale-title-medium" id="yearTitle"></h2>
@@ -195,6 +208,7 @@
         <md-outlined-text-field id="wmin" label="Minutes" type="number" step="1" min="0" value="45"></md-outlined-text-field>
         <md-outlined-text-field id="wmph" label="Speed (mph)" type="number" step="0.1" min="0" value="3"></md-outlined-text-field>
         <md-outlined-text-field id="wgrade" label="Incline %" type="number" step="0.5" min="0" value="0"></md-outlined-text-field>
+        <md-outlined-text-field id="wvest" label="Vest (lb)" type="number" step="1" min="0" value="0"></md-outlined-text-field>
       </div>
       <div class="row" id="strInputs" style="margin-top:12px" hidden>
         <md-outlined-segmented-button-set id="tag" aria-label="Muscle group">
@@ -203,11 +217,47 @@
 <md-outlined-segmented-button no-checkmark label="Core" data-value="core"></md-outlined-segmented-button>
 </md-outlined-segmented-button-set>
         <md-outlined-text-field id="sets" label="Sets" type="number" step="1" min="1" value="8"></md-outlined-text-field>
+        <md-outlined-text-field id="exercises" label="Exercises" type="number" step="1" min="1" value="3"></md-outlined-text-field>
       </div>
       <div class="result md-typescale-title-medium" id="preview"></div>
-      <p class="hint md-typescale-body-small">Credit is the face value minus a discount for recent work of the same kind. The percentage is the average over the whole session, so it is lower than the first mile's value above.</p>
+      <p class="hint md-typescale-body-small">Credit is the face value minus a discount for recent work of the same kind. The percentage is the average over the whole session, so it is lower than the first mile's value above. Strength sets are spread evenly over the exercises, and extra sets of one exercise count a little less each.</p>
     </section>
   </div>
+  </div>
+
+  <div id="tab-tools" class="panel" hidden>
+  <section class="card">
+    <h2 class="md-typescale-title-medium">Timers</h2>
+    <md-outlined-segmented-button-set id="toolMode" aria-label="Timer">
+<md-outlined-segmented-button no-checkmark label="Stopwatch" data-value="stopwatch" selected></md-outlined-segmented-button>
+<md-outlined-segmented-button no-checkmark label="EMOM" data-value="emom"></md-outlined-segmented-button>
+<md-outlined-segmented-button no-checkmark label="Tempo" data-value="tempo"></md-outlined-segmented-button>
+</md-outlined-segmented-button-set>
+    <div class="clock md-typescale-display-large" id="tClock">0:00.0</div>
+    <div class="clockstatus md-typescale-title-medium" id="tStatus">&nbsp;</div>
+    <div class="row" id="emomInputs" hidden>
+      <md-outlined-text-field id="emomRounds" label="Rounds" type="number" step="1" min="1" value="10"></md-outlined-text-field>
+      <md-outlined-text-field id="emomSecs" label="Seconds per round" type="number" step="5" min="10" value="60"></md-outlined-text-field>
+    </div>
+    <div class="row" id="tempoInputs" hidden>
+      <md-outlined-text-field id="tUp" label="Up (s)" type="number" step="0.5" min="0" value="1"></md-outlined-text-field>
+      <md-outlined-text-field id="tTop" label="Pause at top (s)" type="number" step="0.5" min="0" value="0"></md-outlined-text-field>
+      <md-outlined-text-field id="tDown" label="Down (s)" type="number" step="0.5" min="0" value="3"></md-outlined-text-field>
+      <md-outlined-text-field id="tBottom" label="Hold at bottom (s)" type="number" step="0.5" min="0" value="1"></md-outlined-text-field>
+    </div>
+    <div class="actions" style="margin-top:12px">
+      <md-filled-button id="tStart">Start</md-filled-button>
+      <md-filled-tonal-button id="tStop" disabled>Stop</md-filled-tonal-button>
+      <md-text-button id="tReset">Reset</md-text-button>
+    </div>
+    <p class="hint md-typescale-body-small" id="tHint"></p>
+  </section>
+  </div>
+
+  <div id="tab-weight" class="panel" hidden>
+  <section class="card" id="noWeight">
+    <p class="md-typescale-body-medium">Import a FitNotes body tracker export below to see your weight trend.</p>
+  </section>
 
   <section class="card" id="weightCard" hidden>
     <h2 class="md-typescale-title-medium">Body weight</h2>
@@ -229,6 +279,7 @@
     <svg class="wchart" id="wChart" role="img" aria-label="Body weight readings with a smoothed trend line"></svg>
     <p class="hint md-typescale-body-small" id="wNote"></p>
   </section>
+  </div>
 
   <section class="card">
     <h2 class="md-typescale-title-medium">Import</h2>
@@ -246,7 +297,7 @@
     <div class="actions" style="margin-top:12px">
       <md-filled-tonal-button id="fbShare" hidden>Share</md-filled-tonal-button>
       <md-filled-tonal-button id="fbCopy">Copy</md-filled-tonal-button>
-      <md-filled-tonal-button id="fbClear">Clear</md-filled-tonal-button>
+      <md-text-button id="fbClear">Clear</md-text-button>
     </div>
     <p class="hint md-typescale-body-small" id="fbNote">Saved on this device as you type. Share or copy adds the app version and date.</p>
   </section>
@@ -254,5 +305,6 @@
 <script src="engine.js" defer></script>
 <script src="weight.js" defer></script>
 <script src="app.js" defer></script>
+<script src="tools.js" defer></script>
 </body>
 </html>
