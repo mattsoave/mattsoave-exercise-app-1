@@ -18,6 +18,21 @@ check('credit is below face value when load is high', E.cardioCredit(10, 5, K) <
 check('credit equals about face value when load is zero and amount is small', Math.abs(E.cardioCredit(0, 0.01, K) - 0.01) < 1e-3);
 check('pace factor is 1 at or below start and max at full',
   E.paceFactor(6, E.DEFAULTS.cardio) === 1 && Math.abs(E.paceFactor(8.5, E.DEFAULTS.cardio) - 1.35) < 1e-9);
+const W = E.DEFAULTS.cardio;
+const hour = (mph, g) => E.walkPoints(60, mph, g, W);
+check('walk credit rises with speed and with incline', hour(2, 0) < hour(3, 0) && hour(3, 0) < hour(3.5, 0) && hour(3, 0) < hour(3, 0.05) && hour(3, 0.05) < hour(3, 0.1));
+check('3 mph flat walk for an hour is worth 0.7 to 1.2 run-miles', hour(3, 0) > 0.7 && hour(3, 0) < 1.2);
+check('slow stroll is worth something but less than half a run-mile per hour', hour(2, 0) > 0.1 && hour(2, 0) < 0.5);
+check('3 mph at 10% incline for an hour is worth 3 to 4.5 run-miles', hour(3, 0.1) > 3 && hour(3, 0.1) < 4.5);
+check('walk credit has no jumps (0.1 mph step changes an hour by less than 0.1)', Math.abs(hour(2.55, 0) - hour(2.45, 0)) < 0.1);
+check('walk credit is never negative', hour(0.5, 0) >= 0);
+check('climb parsing: calories/vfeet', Math.abs(E.climbFromComment('84/155', 1, 0.15) - 155 / 5280) < 1e-9);
+check('climb parsing: ?/555 and /555 and 555 vfeet', ['?/555', '/555', '555 vfeet', '555 vt feet', '307 cal, 555 vfeet'].every((c) => Math.abs(E.climbFromComment(c, 1, 0.5) - 555 / 5280) < 1e-9));
+check('climb parsing: no climb for 0, calories only, or empty', ['229/0', '629 cal', ''].every((c) => E.climbFromComment(c, 2, 0.15) === 0));
+check('climb parsing: percent incline fallback', Math.abs(E.climbFromComment('3% incline', 1, 0.15) - 0.03) < 1e-9);
+check('climb is capped at maxGrade', E.climbFromComment('0/99999', 1, 0.15) === 0.15);
+const base = E.score('Date,Exercise,Category,Weight,Weight Unit,Reps,Distance,Distance Unit,Time,Comment\n2026-01-01,Home Treadmill,Cardio,,,,3,mi,0:30:00,\n');
+check('a run with climb earns more than the same run flat', E.previewRun(base, '2026-01-02', 3, 6, true, 3).raw > E.previewRun(base, '2026-01-02', 3, 6, true, 0).raw);
 check('dates round-trip', E.isoFromDay(E.dayNumber('2026-03-24')) === '2026-03-24');
 check('weeks start on Monday', E.weekly([{ date: '2026-11-14', kind: 'cardio', credit: 1, miles: 1 }])[0].week === '2026-11-09');
 
@@ -47,6 +62,11 @@ for (const [label, p] of [
   ['3 mi hard (8.0 mph)', E.previewRun(result, next, 3, 8.0, true)],
   ['7 mi easy (6.2 mph)', E.previewRun(result, next, 7, 6.2, true)],
   ['14 mi outdoor', E.previewRun(result, next, 14, 6.6, false)],
+  ['walk 60 min, 2 mph', E.previewWalk(result, next, 60, 2, 0)],
+  ['walk 60 min, 3 mph', E.previewWalk(result, next, 60, 3, 0)],
+  ['walk 60 min, 3.5 mph', E.previewWalk(result, next, 60, 3.5, 0)],
+  ['walk 45 min, 3 mph 10%', E.previewWalk(result, next, 45, 3, 10)],
+  ['3 mi easy, 2% incline', E.previewRun(result, next, 3, 6.3, true, 2)],
   ['upper, 8 sets', E.previewStrength(result, next, 'upper', 8)],
   ['lower, 8 sets', E.previewStrength(result, next, 'lower', 8)],
 ]) console.log(`${label.padEnd(22)} face ${f(p.raw).padStart(5)}  credit ${f(p.credit).padStart(5)}`);

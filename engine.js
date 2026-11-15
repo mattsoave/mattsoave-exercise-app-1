@@ -11,7 +11,11 @@
       paceStart: 6.5,    // mph. Treadmill running at or below this earns no pace bonus.
       paceFull: 8.0,     // mph. Treadmill running at or above this earns the full pace bonus.
       paceBonus: 0.35,   // +35% credit at paceFull.
-      walkFactor: 0.6,   // a walked mile counts as this many run-miles (no incline data used yet).
+      baseMET: 2,        // walking effort below about 2 METs (ordinary moving around) earns nothing, ramped in smoothly.
+      baseSmooth: 0.25,  // METs. Width of that ramp. Larger means a softer corner.
+      refMph: 6.5,       // an easy run-mile at this speed is the yardstick for walking effort.
+      elevationScale: 1, // 1 = full climbing cost from the formula; 0 ignores incline and elevation.
+      maxGrade: 0.15,    // average grades above this are treated as typos or GPS noise.
     },
     strength: {
       tagTau: 1.5,       // days. How fast a muscle group (upper/lower/core) recovers.
@@ -32,6 +36,7 @@
     'Treadmill Endurance': TREADMILL_RUN,
     'Running (Outdoor)': { kind: 'run', treadmill: false }, // outdoor times may be elapsed, so no pace bonus
     'Treadmill (Walking)': { kind: 'walk', treadmill: true },
+    'Walking (Outside)': { kind: 'walk', treadmill: false },
   };
 
   // FitNotes categories map to muscle groups; a few exercises are filed under odd categories.
@@ -77,6 +82,17 @@
     return rows.slice(1).map((r) => Object.fromEntries(head.map((h, i) => [h, r[i] === undefined ? '' : r[i]])));
   }
 
+  // Climb in vertical feet from a FitNotes comment. Accepts "calories/vfeet" (84/155), "?/555", "/555",
+  // "307 cal, 105 vfeet", and "555 vfeet". Falls back to "3% incline" as a direct grade.
+  function climbFromComment(comment, miles, maxGrade) {
+    const c = comment || '';
+    let grade = null;
+    let m = c.match(/^\s*(?:\d+|\?)?\s*\/\s*(\d+)/) || c.match(/(\d+)\s*v(?:t)?\s*(?:ft|feet)/i);
+    if (m) grade = Number(m[1]) / (miles * 5280);
+    else if ((m = c.match(/(\d+(?:\.\d+)?)\s*%/))) grade = Number(m[1]) / 100;
+    return grade === null ? 0 : Math.min(maxGrade, Math.max(0, grade));
+  }
+
   function dayNumber(iso) {
     const [y, m, d] = iso.split('-').map(Number);
     return Math.round(Date.UTC(y, m - 1, d) / 86400000);
@@ -111,7 +127,8 @@
         const miles = parseFloat(r.Distance);
         const secs = seconds(r.Time);
         if (!(miles > 0) || !(secs > 0)) continue;
-        get(date).segments.push({ miles, minutes: secs / 60, mph: miles / (secs / 3600), ...cardio });
+        const grade = climbFromComment(r.Comment, miles, DEFAULTS.cardio.maxGrade);
+        get(date).segments.push({ miles, minutes: secs / 60, mph: miles / (secs / 3600), grade, ...cardio });
         continue;
       }
       if (r.Category.trim().toLowerCase() === 'cardio') continue; // e.g. rowing machine, not scored yet
@@ -127,12 +144,29 @@
     return 1 + c.paceBonus * Math.min(1, Math.max(0, x));
   }
 
-  // Run-equivalent miles for a set of segments, with the pace bonus applied to treadmill running.
+  // Oxygen-cost formulas (ACSM). Speed in meters per minute, grade as a fraction. 1 MET = 3.5 ml/kg/min.
+  const MPH_TO_MPM = 26.8224;
+  const walkMET = (mph, grade) => ((0.1 * mph * MPH_TO_MPM) + 1.8 * mph * MPH_TO_MPM * grade + 3.5) / 3.5;
+  const runMET = (mph) => (0.2 * mph * MPH_TO_MPM + 3.5) / 3.5;
+  const smoothPos = (x, w) => w * Math.log(1 + Math.exp(x / w)); // smooth version of max(0, x)
+
+  // Run-miles of credit for a walk: effort above the baseline, in MET-minutes, divided by the
+  // effort of one easy run-mile.
+  function walkPoints(minutes, mph, grade, c) {
+    const effort = smoothPos(walkMET(mph, grade * c.elevationScale) - c.baseMET, c.baseSmooth);
+    const perRunMile = (60 / c.refMph) * (runMET(c.refMph) - c.baseMET);
+    return (effort * minutes) / perRunMile;
+  }
+
+  // Climbing adds 4.5 x grade to the net oxygen cost of running (0.9 x speed x grade against 0.2 x speed).
+  const elevationFactor = (grade, c) => 1 + c.elevationScale * 4.5 * grade;
+
+  // Run-equivalent miles for a set of segments: pace bonus for treadmill running, climb for runs, effort for walks.
   function cardioPoints(segments, c) {
     let p = 0;
     for (const s of segments) {
-      if (s.kind === 'walk') p += s.miles * c.walkFactor;
-      else p += s.miles * (s.treadmill ? paceFactor(s.mph, c) : 1);
+      if (s.kind === 'walk') p += walkPoints(s.minutes, s.mph, s.grade || 0, c);
+      else p += s.miles * (s.treadmill ? paceFactor(s.mph, c) : 1) * elevationFactor(s.grade || 0, c);
     }
     return p;
   }
@@ -191,7 +225,8 @@
         const credit = cardioCredit(state.cardio, p, cfg.cardio.K);
         entries.push({
           date: d.date, kind: 'cardio', raw: p, credit,
-          miles: d.segments.reduce((a, s) => a + s.miles, 0),
+          miles: d.segments.filter((s) => s.kind === 'run').reduce((a, s) => a + s.miles, 0),
+          walkMiles: d.segments.filter((s) => s.kind === 'walk').reduce((a, s) => a + s.miles, 0),
           segments: d.segments.length,
         });
         state.cardio += p;
@@ -214,11 +249,17 @@
   }
 
   // What would a session earn if done on `dateIso`? (state comes from score().)
-  function previewRun(result, dateIso, miles, mph, treadmill) {
+  function previewCardio(result, dateIso, segment) {
     const cfg = result.cfg;
     const st = decay(result.state, dayNumber(dateIso), cfg);
-    const p = cardioPoints([{ kind: 'run', miles, mph, treadmill }], cfg.cardio);
+    const p = cardioPoints([segment], cfg.cardio);
     return { raw: p, credit: cardioCredit(st.cardio, p, cfg.cardio.K) };
+  }
+  function previewRun(result, dateIso, miles, mph, treadmill, gradePct) {
+    return previewCardio(result, dateIso, { kind: 'run', miles, mph, treadmill, grade: (gradePct || 0) / 100 });
+  }
+  function previewWalk(result, dateIso, minutes, mph, gradePct) {
+    return previewCardio(result, dateIso, { kind: 'walk', miles: (mph * minutes) / 60, minutes, mph, grade: (gradePct || 0) / 100 });
   }
   function previewStrength(result, dateIso, tag, sets) {
     const cfg = result.cfg;
@@ -250,17 +291,17 @@
       if (!w.has(k)) w.set(k, { week: k, cardio: 0, strength: 0, miles: 0 });
       const o = w.get(k);
       o[e.kind] += e.credit;
-      if (e.kind === 'cardio') o.miles += e.miles;
+      if (e.kind === 'cardio') o.miles += e.miles + e.walkMiles;
     }
     return [...w.values()].sort((a, b) => (a.week < b.week ? -1 : 1));
   }
 
   function totals(entries, fromIso, toIso) {
-    const t = { cardio: 0, strength: 0, miles: 0, cardioDays: 0, strengthDays: new Set() };
+    const t = { cardio: 0, strength: 0, miles: 0, walkMiles: 0, cardioDays: 0, strengthDays: new Set() };
     for (const e of entries) {
       if (e.date < fromIso || e.date > toIso) continue;
       t[e.kind] += e.credit;
-      if (e.kind === 'cardio') { t.miles += e.miles; t.cardioDays++; } else t.strengthDays.add(e.date);
+      if (e.kind === 'cardio') { t.miles += e.miles; t.walkMiles += e.walkMiles; t.cardioDays++; } else t.strengthDays.add(e.date);
     }
     t.strengthDays = t.strengthDays.size;
     t.total = t.cardio + t.strength;
@@ -268,7 +309,7 @@
   }
 
   const api = {
-    DEFAULTS, TAGS, parseCsv, buildDays, score, previewRun, previewStrength, freshness, weekly, totals,
+    DEFAULTS, TAGS, parseCsv, buildDays, score, previewRun, previewWalk, previewStrength, walkPoints, walkMET, climbFromComment, freshness, weekly, totals,
     cardioCredit, paceFactor, isoFromDay, dayNumber,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

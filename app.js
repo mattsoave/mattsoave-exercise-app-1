@@ -1,4 +1,4 @@
-const VERSION = 4;
+const VERSION = 5;
 const $ = (id) => document.getElementById(id);
 $('ver').textContent = VERSION;
 
@@ -78,7 +78,7 @@ function render() {
   const share = t.total ? (100 * t.cardio) / t.total : 0;
   $('splitC').style.width = `${share}%`;
   $('splitS').style.width = `${100 - share}%`;
-  $('keyC').textContent = `Cardio ${f1(t.cardio)} (${f1(t.miles)} mi, ${t.cardioDays} days)`;
+  $('keyC').textContent = `Cardio ${f1(t.cardio)} (${f1(t.miles)} mi run` + (t.walkMiles ? `, ${f1(t.walkMiles)} mi walked` : '') + `, ${t.cardioDays} days)`;
   $('keyS').textContent = `Strength ${f1(t.strength)} (${t.strengthDays} days)`;
 
   // Last 12 calendar weeks, including empty ones
@@ -115,11 +115,17 @@ function renderPreview() {
   if (!result) return;
   const date = $('when').value || todayIso();
   let p, label;
-  if ($('type').value === 'run') {
-    const miles = parseFloat($('miles').value), mph = parseFloat($('mph').value);
+  const type = $('type').value;
+  if (type === 'run') {
+    const miles = parseFloat($('miles').value), mph = parseFloat($('mph').value), grade = parseFloat($('rgrade').value) || 0;
     if (!(miles > 0) || !(mph > 0)) { $('preview').textContent = ''; return; }
-    p = Engine.previewRun(result, date, miles, mph, $('where').value === 'tm');
-    label = `${miles} mi at ${mph} mph`;
+    p = Engine.previewRun(result, date, miles, mph, $('where').value === 'tm', grade);
+    label = `${miles} mi at ${mph} mph` + (grade ? `, ${grade}% incline` : '');
+  } else if (type === 'walk') {
+    const min = parseFloat($('wmin').value), mph = parseFloat($('wmph').value), grade = parseFloat($('wgrade').value) || 0;
+    if (!(min > 0) || !(mph > 0)) { $('preview').textContent = ''; return; }
+    p = Engine.previewWalk(result, date, min, mph, grade);
+    label = `Walk ${min} min at ${mph} mph` + (grade ? `, ${grade}% incline` : '');
   } else {
     const sets = parseFloat($('sets').value);
     if (!(sets > 0)) { $('preview').textContent = ''; return; }
@@ -129,8 +135,13 @@ function renderPreview() {
   $('preview').textContent = `${label}: face value ${f1(p.raw)}, credit ${f1(p.credit)} (${Math.round((100 * p.credit) / p.raw)}%)`;
 }
 
-['type', 'when', 'miles', 'mph', 'where', 'tag', 'sets'].forEach((id) => ['input', 'change'].forEach((ev) => $(id).addEventListener(ev, () => {
-  if (id === 'type') { $('runInputs').hidden = $('type').value !== 'run'; $('strInputs').hidden = $('type').value === 'run'; }
+['type', 'when', 'miles', 'mph', 'rgrade', 'where', 'wmin', 'wmph', 'wgrade', 'tag', 'sets'].forEach((id) => ['input', 'change'].forEach((ev) => $(id).addEventListener(ev, () => {
+  if (id === 'type') {
+    const t = $('type').value;
+    $('runInputs').hidden = t !== 'run';
+    $('walkInputs').hidden = t !== 'walk';
+    $('strInputs').hidden = t !== 'strength';
+  }
   renderPreview();
 })));
 

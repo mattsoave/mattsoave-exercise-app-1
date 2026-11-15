@@ -136,6 +136,7 @@
       <div class="row">
         <md-outlined-select id="type" label="Type" value="run">
           <md-select-option value="run" selected><div slot="headline">Run</div></md-select-option>
+          <md-select-option value="walk"><div slot="headline">Walk</div></md-select-option>
           <md-select-option value="strength"><div slot="headline">Strength</div></md-select-option>
         </md-outlined-select>
         <md-outlined-text-field id="when" label="Date" type="date"></md-outlined-text-field>
@@ -143,10 +144,16 @@
       <div class="row" id="runInputs" style="margin-top:12px">
         <md-outlined-text-field id="miles" label="Miles" type="number" step="0.1" min="0" value="3"></md-outlined-text-field>
         <md-outlined-text-field id="mph" label="Speed (mph)" type="number" step="0.1" min="0" value="7.5"></md-outlined-text-field>
+        <md-outlined-text-field id="rgrade" label="Incline %" type="number" step="0.5" min="0" value="0"></md-outlined-text-field>
         <md-outlined-select id="where" label="Where" value="tm">
           <md-select-option value="tm" selected><div slot="headline">Treadmill</div></md-select-option>
           <md-select-option value="out"><div slot="headline">Outdoor</div></md-select-option>
         </md-outlined-select>
+      </div>
+      <div class="row" id="walkInputs" style="margin-top:12px" hidden>
+        <md-outlined-text-field id="wmin" label="Minutes" type="number" step="1" min="0" value="45"></md-outlined-text-field>
+        <md-outlined-text-field id="wmph" label="Speed (mph)" type="number" step="0.1" min="0" value="3"></md-outlined-text-field>
+        <md-outlined-text-field id="wgrade" label="Incline %" type="number" step="0.5" min="0" value="0"></md-outlined-text-field>
       </div>
       <div class="row" id="strInputs" style="margin-top:12px" hidden>
         <md-outlined-select id="tag" label="Muscle group" value="upper">
