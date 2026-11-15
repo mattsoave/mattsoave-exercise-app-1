@@ -1,5 +1,22 @@
-const VERSION = 8;
+const VERSION = 9;
 const $ = (id) => document.getElementById(id);
+
+// Segmented button sets have no .value, so give each one a value (the selected button's data-value) and a change event.
+// The set announces a selection before it clears the previously selected button, so read the new choice from the event.
+function segmented(id) {
+  const el = $(id);
+  const buttons = () => [...el.querySelectorAll('md-outlined-segmented-button')];
+  let chosen = null;
+  Object.defineProperty(el, 'value', {
+    get() { const b = chosen || buttons().find((x) => x.selected); return b ? b.dataset.value : ''; },
+    set(v) { chosen = buttons().find((x) => x.dataset.value === v) || null; buttons().forEach((x) => { x.selected = x === chosen; }); },
+  });
+  el.addEventListener('segmented-button-set-selection', (e) => {
+    chosen = e.detail.button;
+    el.dispatchEvent(new Event('change'));
+  });
+}
+['type', 'where', 'tag', 'wRange', 'decayView'].forEach(segmented);
 $('ver').textContent = VERSION;
 
 // ---- Status, install ----
@@ -97,7 +114,67 @@ function render() {
   $('weekLabels').innerHTML = weeks.map((w) => `<span>${w.week.slice(5)}</span>`).join('');
 
   renderFresh();
+  renderDecay();
   renderPreview();
+}
+
+const DECAY_LINES = [
+  ['Cardio', 'cardio', 'var(--md-sys-color-primary)'],
+  ['Upper', 'upper', 'var(--md-sys-color-tertiary)'],
+  ['Lower', 'lower', 'var(--chart-lower)'],
+  ['Core', 'core', 'var(--chart-core)'],
+];
+const DECAY_BACK = 21, DECAY_AHEAD = 7;
+
+// One line chart as SVG markup. `lines` are [label, key, color]; `top` is the y-axis maximum (0 to 1).
+function decaySvg(series, lines, top, W, H, small) {
+  const L = small ? 28 : 34, R = 8, T = 8, B = 20;
+  const x = (i) => L + (i * (W - L - R)) / (series.length - 1);
+  const y = (v) => T + (1 - v / top) * (H - T - B);
+  const ti = DECAY_BACK;
+  let svg = '';
+  for (const g of [0, top / 2, top]) svg += `<line class="grid" x1="${L}" x2="${W - R}" y1="${y(g)}" y2="${y(g)}"/><text class="lbl" x="${L - 4}" y="${y(g) + 3}" text-anchor="end">${Math.round(g * 100)}%</text>`;
+  svg += `<rect class="future" x="${x(ti)}" y="${T}" width="${W - R - x(ti)}" height="${H - T - B}"/>`;
+  svg += `<line class="today" x1="${x(ti)}" x2="${x(ti)}" y1="${T}" y2="${H - B}"/>`;
+  const step = small ? 14 : 7;
+  for (let i = 0; i < series.length; i += step) {
+    svg += `<text class="lbl" x="${x(i)}" y="${H - 5}" text-anchor="${i === 0 ? 'start' : i + step >= series.length ? 'end' : 'middle'}">${series[i].date.slice(5)}</text>`;
+  }
+  if (!small) svg += `<text class="lbl" x="${x(ti) + 4}" y="${H - B - 4}">today</text>`;
+  for (const [, k, color] of lines) {
+    const pts = series.map((p, i) => `${x(i).toFixed(1)},${y(p[k]).toFixed(1)}`);
+    svg += `<polyline class="ln" style="stroke:${color}" points="${pts.slice(0, ti + 1).join(' ')}"/>`;
+    svg += `<polyline class="ln proj" style="stroke:${color}" points="${pts.slice(ti).join(' ')}"/>`;
+    svg += `<circle cx="${x(ti)}" cy="${y(series[ti][k])}" r="3.5" style="fill:${color}"/>`;
+  }
+  return svg;
+}
+
+function renderDecay() {
+  const today = todayIso();
+  const n0 = Engine.dayNumber(today);
+  // "Kept up" is the opposite of the first-mile value: 0% with no recent work, rising as the load builds.
+  const raw = Engine.freshnessSeries(result, Engine.isoFromDay(n0 - DECAY_BACK), Engine.isoFromDay(n0 + DECAY_AHEAD));
+  const series = raw.map((p) => ({ date: p.date, cardio: 1 - p.cardio, upper: 1 - p.upper, lower: 1 - p.lower, core: 1 - p.core }));
+  const niceTop = (keys) => Math.max(0.2, Math.ceil(Math.max(...series.flatMap((p) => keys.map((k) => p[k]))) * 10) / 10);
+  const grid = $('decayView').value === 'grid';
+  $('dChart').toggleAttribute('hidden', grid); // SVG elements have no .hidden property
+  $('dGrid').hidden = !grid;
+  if (grid) {
+    // Each small chart has its own scale so strength is readable next to cardio.
+    $('dGrid').innerHTML = DECAY_LINES.map(([label, k, color]) =>
+      `<div><div class="md-typescale-label-large"><span class="dot" style="background:${color}"></span>${label} ${Math.round(series[DECAY_BACK][k] * 100)}% now</div>` +
+      `<svg class="dchart" viewBox="0 0 180 120" role="img" aria-label="${label}: recent work carried over time">${decaySvg(series, [[label, k, color]], niceTop([k]), 180, 120, true)}</svg></div>`).join('');
+  } else {
+    $('dChart').setAttribute('viewBox', '0 0 360 170');
+    $('dChart').innerHTML = decaySvg(series, DECAY_LINES, niceTop(DECAY_LINES.map((l) => l[1])), 360, 170, false);
+  }
+  $('dLegend').hidden = grid;
+  $('dLegend').innerHTML = DECAY_LINES.map(([label, k, color]) =>
+    `<span><span class="dot" style="background:${color}"></span>${label} ${Math.round(series[DECAY_BACK][k] * 100)}% now, ${Math.round(series[series.length - 1][k] * 100)}% in ${DECAY_AHEAD} days</span>`).join('');
+  $('dNote').textContent = grid
+    ? 'Each small chart has its own scale, so the heights are not comparable between them. Dashed and shaded means you log nothing new.'
+    : 'Each line is how much recent work you are carrying in that category. A session pushes it up, and it fades while you rest. The higher the line, the less a new session of that kind would earn. Dashed and shaded means you log nothing new.';
 }
 
 function renderFresh() {
@@ -157,7 +234,7 @@ function loadWeight() {
 }
 
 function renderWeight() {
-  const range = Weight.RANGES.find((r) => r.key === $('wRange').value) || Weight.RANGES[1];
+  const range = Weight.RANGES.find((r) => r.key === $('wRange').value) || Weight.RANGES.find((r) => r.key === Weight.DEFAULTS.defaultRange);
   const span = parseFloat($('wSpan').value);
   $('wSpanOut').textContent = span.toFixed(2);
   const { start, end, points } = Weight.filterRange(weights, range.months, Date.now());
@@ -210,6 +287,8 @@ function renderWeight() {
 }
 
 $('wRange').addEventListener('change', renderWeight);
+$('decayView').value = localStorage.getItem('decayView') || 'one';
+$('decayView').addEventListener('change', () => { localStorage.setItem('decayView', $('decayView').value); if (result) renderDecay(); });
 $('wSpan').addEventListener('input', renderWeight);
 
 // ---- Import paths ----

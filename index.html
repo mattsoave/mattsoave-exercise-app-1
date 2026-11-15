@@ -19,6 +19,8 @@
     --md-sys-color-secondary-container: #dae2f9;
     --md-sys-color-on-secondary-container: #131c2b;
     --md-sys-color-tertiary: #a15c00;
+    --chart-lower: #2e7d32;
+    --chart-core: #8e3fb5;
     --md-sys-color-surface: #faf9fd;
     --md-sys-color-on-surface: #1a1b20;
     --md-sys-color-on-surface-variant: #44474f;
@@ -40,6 +42,8 @@
       --md-sys-color-secondary-container: #3e4759;
       --md-sys-color-on-secondary-container: #dae2f9;
       --md-sys-color-tertiary: #ffb870;
+      --chart-lower: #81c995;
+      --chart-core: #d7a8f0;
       --md-sys-color-surface: #121316;
       --md-sys-color-on-surface: #e3e2e6;
       --md-sys-color-on-surface-variant: #c4c6d0;
@@ -79,12 +83,22 @@
   .fresh md-linear-progress { width:100%; }
   .result { margin-top:14px; }
   .actions { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
-  md-outlined-text-field, md-outlined-select { width:100%; }
+  md-outlined-text-field, md-outlined-select, md-outlined-segmented-button-set { width:100%; }
   .wchart { width:100%; height:auto; display:block; margin-top:12px; }
   .wchart .grid { stroke:var(--md-sys-color-outline-variant); stroke-width:1; }
   .wchart .lbl { fill:var(--md-sys-color-on-surface-variant); font-size:10px; }
   .wchart .pt { fill:var(--md-sys-color-primary); opacity:.5; }
   .wchart .trend { fill:none; stroke:var(--md-sys-color-tertiary); stroke-width:2.5; stroke-linejoin:round; stroke-linecap:round; }
+  .dchart { width:100%; height:auto; display:block; margin-top:8px; }
+  .dchart .grid { stroke:var(--md-sys-color-outline-variant); stroke-width:1; }
+  .dchart .today { stroke:var(--md-sys-color-outline); stroke-width:1; stroke-dasharray:3 3; }
+  .dchart .future { fill:var(--md-sys-color-surface-variant); opacity:.45; }
+  .dchart .lbl { fill:var(--md-sys-color-on-surface-variant); font-size:10px; }
+  .dchart .ln { fill:none; stroke-width:2.2; stroke-linejoin:round; stroke-linecap:round; }
+  .dchart .ln.proj { stroke-dasharray:4 3; }
+  .dgrid { display:grid; grid-template-columns:1fr 1fr; gap:12px 8px; margin-top:12px; }
+  .dgrid .dchart { margin-top:2px; }
+  .dlegend { display:flex; flex-wrap:wrap; gap:4px 14px; margin-top:8px; }
   .slider { display:flex; align-items:center; gap:12px; margin-top:12px; }
   .slider input { flex:1; accent-color:var(--md-sys-color-primary); }
   .slider output { min-width:2.5em; text-align:right; }
@@ -132,23 +146,35 @@
     </section>
 
     <section class="card">
+      <h2 class="md-typescale-title-medium">Keeping it up</h2>
+      <md-outlined-segmented-button-set id="decayView" aria-label="View">
+<md-outlined-segmented-button label="Combined" data-value="one" selected></md-outlined-segmented-button>
+<md-outlined-segmented-button label="Four charts" data-value="grid"></md-outlined-segmented-button>
+</md-outlined-segmented-button-set>
+      <div class="dgrid" id="dGrid" hidden></div>
+      <svg class="dchart" id="dChart" role="img" aria-label="How much recent work you are carrying in each of the four categories, over the last three weeks and the next week"></svg>
+      <div class="dlegend key md-typescale-body-small" id="dLegend"></div>
+      <p class="hint md-typescale-body-small" id="dNote"></p>
+    </section>
+
+    <section class="card">
       <h2 class="md-typescale-title-medium">Preview a session</h2>
       <div class="row">
-        <md-outlined-select id="type" label="Type" value="run">
-          <md-select-option value="run" selected><div slot="headline">Run</div></md-select-option>
-          <md-select-option value="walk"><div slot="headline">Walk</div></md-select-option>
-          <md-select-option value="strength"><div slot="headline">Strength</div></md-select-option>
-        </md-outlined-select>
+        <md-outlined-segmented-button-set id="type" aria-label="Type">
+<md-outlined-segmented-button label="Run" data-value="run" selected></md-outlined-segmented-button>
+<md-outlined-segmented-button label="Walk" data-value="walk"></md-outlined-segmented-button>
+<md-outlined-segmented-button label="Strength" data-value="strength"></md-outlined-segmented-button>
+</md-outlined-segmented-button-set>
         <md-outlined-text-field id="when" label="Date" type="date"></md-outlined-text-field>
       </div>
       <div class="row" id="runInputs" style="margin-top:12px">
         <md-outlined-text-field id="miles" label="Miles" type="number" step="0.1" min="0" value="3"></md-outlined-text-field>
         <md-outlined-text-field id="mph" label="Speed (mph)" type="number" step="0.1" min="0" value="7.5"></md-outlined-text-field>
         <md-outlined-text-field id="rgrade" label="Incline %" type="number" step="0.5" min="0" value="0"></md-outlined-text-field>
-        <md-outlined-select id="where" label="Where" value="tm">
-          <md-select-option value="tm" selected><div slot="headline">Treadmill</div></md-select-option>
-          <md-select-option value="out"><div slot="headline">Outdoor</div></md-select-option>
-        </md-outlined-select>
+        <md-outlined-segmented-button-set id="where" aria-label="Where">
+<md-outlined-segmented-button label="Treadmill" data-value="tm" selected></md-outlined-segmented-button>
+<md-outlined-segmented-button label="Outdoor" data-value="out"></md-outlined-segmented-button>
+</md-outlined-segmented-button-set>
       </div>
       <div class="row" id="walkInputs" style="margin-top:12px" hidden>
         <md-outlined-text-field id="wmin" label="Minutes" type="number" step="1" min="0" value="45"></md-outlined-text-field>
@@ -156,11 +182,11 @@
         <md-outlined-text-field id="wgrade" label="Incline %" type="number" step="0.5" min="0" value="0"></md-outlined-text-field>
       </div>
       <div class="row" id="strInputs" style="margin-top:12px" hidden>
-        <md-outlined-select id="tag" label="Muscle group" value="upper">
-          <md-select-option value="upper" selected><div slot="headline">Upper</div></md-select-option>
-          <md-select-option value="lower"><div slot="headline">Lower</div></md-select-option>
-          <md-select-option value="core"><div slot="headline">Core</div></md-select-option>
-        </md-outlined-select>
+        <md-outlined-segmented-button-set id="tag" aria-label="Muscle group">
+<md-outlined-segmented-button label="Upper" data-value="upper" selected></md-outlined-segmented-button>
+<md-outlined-segmented-button label="Lower" data-value="lower"></md-outlined-segmented-button>
+<md-outlined-segmented-button label="Core" data-value="core"></md-outlined-segmented-button>
+</md-outlined-segmented-button-set>
         <md-outlined-text-field id="sets" label="Sets" type="number" step="1" min="1" value="8"></md-outlined-text-field>
       </div>
       <div class="result md-typescale-title-medium" id="preview"></div>
@@ -171,18 +197,18 @@
   <section class="card" id="weightCard" hidden>
     <h2 class="md-typescale-title-medium">Body weight</h2>
     <div class="row">
-      <md-outlined-select id="wRange" label="Date range" value="1y">
-        <md-select-option value="2y"><div slot="headline">Last 2 years</div></md-select-option>
-        <md-select-option value="1y" selected><div slot="headline">Last year</div></md-select-option>
-        <md-select-option value="6m"><div slot="headline">Last 6 months</div></md-select-option>
-        <md-select-option value="3m"><div slot="headline">Last 3 months</div></md-select-option>
-        <md-select-option value="1m"><div slot="headline">Last month</div></md-select-option>
-      </md-outlined-select>
+      <md-outlined-segmented-button-set id="wRange" aria-label="Date range">
+<md-outlined-segmented-button label="2 yr" data-value="2y"></md-outlined-segmented-button>
+<md-outlined-segmented-button label="1 yr" data-value="1y"></md-outlined-segmented-button>
+<md-outlined-segmented-button label="6 mo" data-value="6m"></md-outlined-segmented-button>
+<md-outlined-segmented-button label="3 mo" data-value="3m" selected></md-outlined-segmented-button>
+<md-outlined-segmented-button label="1 mo" data-value="1m"></md-outlined-segmented-button>
+</md-outlined-segmented-button-set>
     </div>
     <div class="slider md-typescale-body-medium">
       <label for="wSpan">Bandwidth</label>
-      <input id="wSpan" type="range" min="0.05" max="1" step="0.01" value="0.25">
-      <output id="wSpanOut">0.25</output>
+      <input id="wSpan" type="range" min="0.05" max="1" step="0.01" value="0.40">
+      <output id="wSpanOut">0.40</output>
     </div>
     <p class="hint md-typescale-body-small">Lower follows short-term swings. Higher gives a smoother trend.</p>
     <div class="result md-typescale-title-medium" id="wSummary"></div>

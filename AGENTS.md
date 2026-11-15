@@ -29,13 +29,13 @@ A small installable web app (PWA) that reads a FitNotes CSV export and scores ca
 
 - No build step, no framework, no dependencies to install. Keep it that way unless the owner asks.
 - Plain JavaScript. Keep `engine.js` free of DOM access so it stays testable in Node.
-- Use Material 3 components and the `--md-sys-color-*` theme variables in `index.html`. Do not hardcode colors outside that theme block.
+- Use Material 3 components and the `--md-sys-color-*` theme variables in `index.html`. Use segmented buttons (not dropdowns) for choices with two to five short options; `segmented()` in `app.js` gives each set a `.value` and a `change` event. Do not hardcode colors outside that theme block.
 - Put new tunable numbers in `DEFAULTS`, not inline.
 - When changing scoring, run `node test/run.js` against a real CSV and compare the totals before and after.
 
 ## Things that are easy to get wrong
 
-- **Bump the version when you change any shipped file.** Change `CACHE` in `sw.js` (for example `exercise-score-v3` to `v4`) and `VERSION` in `app.js`. Without the cache bump, installed copies keep serving old files. If you add a file the page needs, add it to `SHELL` in `sw.js`.
+- **Bump the version once per release, when you commit a change to any shipped file.** Do not bump it on every edit while iterating. Change `CACHE` in `sw.js` (for example `exercise-score-v3` to `v4`) and `VERSION` in `app.js`. Without the cache bump, installed copies keep serving old files. If you add a file the page needs, add it to `SHELL` in `sw.js`.
 - `sw.js` installs with `cache: 'reload'` on purpose, so a new version never fills its cache from stale browser or CDN copies. Do not change that to a plain `addAll`.
 - The share target accepts `text/*`, `application/*`, and `.csv` on purpose. FitNotes exports with a MIME type that a short CSV-only list did not match. Android registers share targets at install time, so a manifest change needs a reinstall to show up.
 - Pages sits behind a CDN that can serve old files for about 10 minutes after a push. After deploying, hard reload once (Shift-Cmd-R), then reload normally.
@@ -52,7 +52,7 @@ npm install @material/web@2.5.0 esbuild --registry=https://registry.npmjs.org/
 npx esbuild entry.js --bundle --minify --format=esm --outfile=material.js
 ```
 
-`entry.js` imports the components in use (filled-button, filled-tonal-button, outlined-text-field, outlined-select, select-option, linear-progress) and adds the typescale styles with `document.adoptedStyleSheets.push(styles.styleSheet)`. Copy the output to `vendor/material.js`, then bump the cache version.
+`entry.js` imports the components in use (filled-button, filled-tonal-button, outlined-text-field, outlined-select, select-option, linear-progress, and the labs outlined-segmented-button and outlined-segmented-button-set, imported from `@material/web/labs/segmentedbutton/outlined-segmented-button.js` and `@material/web/labs/segmentedbuttonset/outlined-segmented-button-set.js`) and adds the typescale styles with `document.adoptedStyleSheets.push(styles.styleSheet)`. Copy the output to `vendor/material.js`, then bump the cache version.
 
 ## Git and publishing
 

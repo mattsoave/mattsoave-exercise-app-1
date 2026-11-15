@@ -5,9 +5,9 @@
 
   // Every tunable number lives here.
   const DEFAULTS = {
-    span: 0.25,        // LOESS bandwidth: fraction of the visible readings used in each local fit.
+    span: 0.40,        // LOESS bandwidth: fraction of the visible readings used in each local fit.
     degree: 2,         // LOESS polynomial degree (1 or 2).
-    defaultRange: '1y',
+    defaultRange: '3m',
   };
 
   // Date ranges offered on the page. `months` counts back from today.

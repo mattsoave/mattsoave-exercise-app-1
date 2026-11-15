@@ -239,6 +239,7 @@
     const { days, unmapped } = buildDays(parseCsv(csvText));
     let state = freshState();
     const entries = [];
+    const history = []; // the load state at the end of each day with activity, for the decay chart
     for (const d of days) {
       const n = dayNumber(d.date);
       state = decay(state, n, cfg);
@@ -267,8 +268,9 @@
         total += pts;
       }
       state.strength += total;
+      history.push({ ...state });
     }
-    return { entries, state, unmapped, cfg };
+    return { entries, state, history, unmapped, cfg };
   }
 
   // What would a session earn if done on `dateIso`? (state comes from score().)
@@ -289,6 +291,22 @@
     const st = decay(result.state, dayNumber(dateIso), cfg);
     const pts = strengthPoints(sets, cfg.strength);
     return { raw: pts, credit: pts * strengthMultiplier(st, tag, cfg) };
+  }
+
+  // Value of the next session of each type (1 = fully rested) at the end of each day from startIso to endIso.
+  // Days after the last import assume nothing new is logged.
+  function freshnessSeries(result, startIso, endIso) {
+    const cfg = result.cfg;
+    const out = [];
+    let i = -1;
+    for (let n = dayNumber(startIso); n <= dayNumber(endIso); n++) {
+      while (i + 1 < result.history.length && result.history[i + 1].day <= n) i++;
+      const st = i < 0 ? freshState() : decay(result.history[i], n, cfg);
+      const v = { date: isoFromDay(n), cardio: cfg.cardio.K / (cfg.cardio.K + st.cardio) };
+      for (const t of TAGS) v[t] = strengthMultiplier(st, t, cfg);
+      out.push(v);
+    }
+    return out;
   }
 
   // How much of face value the next session of each type would earn right now.
@@ -332,7 +350,7 @@
   }
 
   const api = {
-    DEFAULTS, TAGS, parseCsv, buildDays, score, previewRun, previewWalk, previewStrength, walkPoints, walkMET, climbFromComment, freshness, weekly, totals,
+    DEFAULTS, TAGS, parseCsv, buildDays, score, previewRun, previewWalk, previewStrength, freshnessSeries, walkPoints, walkMET, climbFromComment, freshness, weekly, totals,
     cardioCredit, paceFactor, isoFromDay, dayNumber,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
