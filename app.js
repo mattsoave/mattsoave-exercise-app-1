@@ -1,4 +1,4 @@
-const VERSION = 15;
+const VERSION = 16;
 const $ = (id) => document.getElementById(id);
 
 // Segmented button sets have no .value, so give each one a value (the selected button's data-value) and a change event.
@@ -277,18 +277,46 @@ function renderRunning(text) {
   const step = [50, 100, 200, 250, 500].find((v) => top / v <= 5) || 1000;
   let svg = '';
   for (let v = 0; v <= top; v += step) svg += `<line class="grid" x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}"/><text class="lbl" x="${L - 4}" y="${y(v) + 3}" text-anchor="end">${v}</text>`;
-  const months = s.daily.map((d, i) => [d.date, i]).filter(([d]) => d.endsWith('-01'));
-  const every = months.length > 6 ? 2 : 1;
-  months.forEach(([d, i], k) => {
-    if (k % every) return;
-    const label = new Date(`${d}T12:00`).toLocaleDateString('en-US', { month: 'short' });
-    svg += `<text class="lbl" x="${x(i)}" y="${H - 5}" text-anchor="${i === 0 ? 'start' : 'middle'}">${label}</text>`;
-  });
+  svg += monthLabels(s.daily, x, H);
   const pts = (k) => s.daily.map((d, i) => `${x(i).toFixed(1)},${y(d[k]).toFixed(1)}`).join(' ');
   svg += `<polyline class="goal" points="${pts('goal')}"/><polyline class="run" points="${pts('miles')}"/>`;
   svg += `<circle cx="${x(n - 1)}" cy="${y(s.daily[n - 1].miles)}" r="3.5" style="fill:var(--md-sys-color-primary)"/>`;
   $('runChart').setAttribute('viewBox', `0 0 ${W} ${H}`);
   $('runChart').innerHTML = svg;
+  renderDelta(s.daily);
+}
+
+// Month names along the bottom of a running chart; every other month when the range is long.
+function monthLabels(daily, x, H) {
+  const months = daily.map((d, i) => [d.date, i]).filter(([d]) => d.endsWith('-01'));
+  const every = months.length > 6 ? 2 : 1;
+  return months.filter((_, k) => !(k % every)).map(([d, i]) =>
+    `<text class="lbl" x="${x(i)}" y="${H - 5}" text-anchor="${i === 0 ? 'start' : 'middle'}">${new Date(`${d}T12:00`).toLocaleDateString('en-US', { month: 'short' })}</text>`).join('');
+}
+
+// Miles ahead (positive) or behind (negative) goal pace, as an area against a zero line.
+function renderDelta(daily) {
+  $('deltaCard').hidden = false;
+  const W = 360, H = 200, L = 34, R = 8, T = 8, B = 20;
+  const n = daily.length;
+  const d = daily.map((p) => p.miles - p.goal);
+  const span = Math.max(1, ...d.map(Math.abs));
+  const step = [5, 10, 20, 25, 50, 100].find((v) => (2 * span) / v <= 6) || 200;
+  const hi = Math.max(step, Math.ceil(Math.max(0, ...d) / step) * step);
+  const lo = Math.min(-step, Math.floor(Math.min(0, ...d) / step) * step);
+  const x = (i) => L + (n > 1 ? (i * (W - L - R)) / (n - 1) : 0);
+  const y = (v) => T + ((hi - v) / (hi - lo)) * (H - T - B);
+  let svg = '';
+  for (let v = lo; v <= hi; v += step) {
+    svg += `<line class="${v === 0 ? 'zero' : 'grid'}" x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}"/><text class="lbl" x="${L - 4}" y="${y(v) + 3}" text-anchor="end">${v > 0 ? '+' : ''}${v}</text>`;
+  }
+  svg += monthLabels(daily, x, H);
+  const line = d.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
+  svg += `<polygon class="area" points="${x(0).toFixed(1)},${y(0).toFixed(1)} ${line} ${x(n - 1).toFixed(1)},${y(0).toFixed(1)}"/>`;
+  svg += `<polyline class="run" points="${line}"/>`;
+  svg += `<circle cx="${x(n - 1)}" cy="${y(d[n - 1])}" r="3.5" style="fill:var(--md-sys-color-primary)"/>`;
+  $('deltaChart').setAttribute('viewBox', `0 0 ${W} ${H}`);
+  $('deltaChart').innerHTML = svg;
 }
 
 // ---- Body weight ----
