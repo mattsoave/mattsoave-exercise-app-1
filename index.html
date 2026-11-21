@@ -111,6 +111,11 @@
   .slider output { min-width:2.5em; text-align:right; }
   [hidden] { display:none !important; }
   md-tabs { margin:0 -16px 12px; background:var(--md-sys-color-surface); position:sticky; top:0; z-index:1; }
+  .rchart { width:100%; height:auto; display:block; margin-top:12px; }
+  .rchart .grid { stroke:var(--md-sys-color-outline-variant); stroke-width:1; }
+  .rchart .lbl { fill:var(--md-sys-color-on-surface-variant); font-size:10px; }
+  .rchart .goal { fill:none; stroke:var(--md-sys-color-outline); stroke-width:1.5; stroke-dasharray:4 3; }
+  .rchart .run { fill:none; stroke:var(--md-sys-color-primary); stroke-width:2.5; stroke-linejoin:round; }
   .clock { text-align:center; margin:20px 0 4px; font-variant-numeric:tabular-nums; }
   .clockstatus { text-align:center; min-height:1.5em; margin-bottom:12px; color:var(--md-sys-color-on-surface-variant); }
   /* The Material type styles load with vendor/material.js, after the first paint. Hold the page back until then so
@@ -135,6 +140,7 @@
 
   <md-tabs id="tabs" aria-label="Sections">
     <md-primary-tab data-tab="credit">Credit</md-primary-tab>
+    <md-primary-tab data-tab="running">Running</md-primary-tab>
     <md-primary-tab data-tab="tools">Tools</md-primary-tab>
     <md-primary-tab data-tab="weight">Weight</md-primary-tab>
   </md-tabs>
@@ -225,6 +231,24 @@
   </div>
   </div>
 
+  <div id="tab-running" class="panel" hidden>
+  <section class="card" id="noRun">
+    <p class="md-typescale-body-medium">Import a FitNotes workout export below to see your running goal.</p>
+  </section>
+  <section class="card" id="runCard" hidden>
+    <h2 class="md-typescale-title-medium" id="runTitle"></h2>
+    <div class="total md-typescale-display-small" id="runTotal"></div>
+    <div class="result md-typescale-title-medium" id="runAhead"></div>
+    <svg class="rchart" id="runChart" role="img" aria-label="Cumulative miles run this year against the goal pace line"></svg>
+    <div class="dlegend key md-typescale-body-small">
+      <span><span class="dot c-cardio"></span>Miles run</span>
+      <span><span class="dot" style="background:var(--md-sys-color-outline)"></span>Goal pace</span>
+    </div>
+    <p class="hint md-typescale-body-medium" id="runStats"></p>
+    <p class="hint md-typescale-body-small">Counts outdoor runs and Home Treadmill sessions at 3.5 mph or faster, the same rules as the running tracker on your Mac.</p>
+  </section>
+  </div>
+
   <div id="tab-tools" class="panel" hidden>
   <section class="card">
     <h2 class="md-typescale-title-medium">Timers</h2>
@@ -304,6 +328,7 @@
 </main>
 <script src="engine.js" defer></script>
 <script src="weight.js" defer></script>
+<script src="running.js" defer></script>
 <script src="app.js" defer></script>
 <script src="tools.js" defer></script>
 </body>

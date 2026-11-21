@@ -68,6 +68,16 @@ check('climb still parses with a vest number after it', Math.abs(E.climbFromComm
 check('a vest walk earns more, and more than 14% for 20 lb at 150 lb', E.walkPoints(60, 3, 0, W, 20) > 1.14 * E.walkPoints(60, 3, 0, W, 0));
 check('weeks start on Monday', E.weekly([{ date: '2026-11-14', kind: 'cardio', credit: 1, miles: 1 }])[0].week === '2026-11-09');
 
+// Running goal (same counting rules as the mattsoav-running-tracking dashboard)
+const R = require('../running.js');
+const hdr = 'Date,Exercise,Category,Weight,Weight Unit,Reps,Distance,Distance Unit,Time,Comment\n';
+const runRows = E.parseCsv(hdr + '2026-01-01,Running (Outdoor),Cardio,,,,3,mi,0:30:00,\n2026-01-02,Home Treadmill,Cardio,,,,1,mi,0:20:00,\n' +
+  '2026-01-02,Home Treadmill,Cardio,,,,2,mi,0:30:00,\n2026-01-03,Treadmill (Walking),Cardio,,,,2,mi,0:40:00,\n2025-12-31,Running (Outdoor),Cardio,,,,5,mi,0:50:00,\n');
+const rs = R.yearSeries(runRows, 2026, '2026-01-03');
+check('running goal: counts outdoor runs and treadmill runs at 3.5 mph or faster, skips walks and other years', rs.total === 5);
+check('running goal: goal line is miles per day times day of year', rs.daily[2].goal === 6 && rs.aheadBy === -1);
+check('running goal: today is clamped to the year', R.yearSeries(runRows, 2026, '2027-03-01').dayOfYear === 365);
+
 console.log(`\n${entries.length} sessions scored. Unmapped exercises: ${result.unmapped.join(', ') || 'none'}`);
 
 console.log('\nTotals by year (credit; raw miles)');
@@ -85,6 +95,9 @@ const last = entries[entries.length - 1].date;
 const fr = E.freshness(result, last);
 console.log(`\nAs of ${last}, share of face value the next session would earn:`);
 console.log(Object.entries(fr.multipliers).map(([k, v]) => `${k} ${Math.round(v * 100)}%`).join('  '));
+
+const yr = R.yearSeries(E.parseCsv(fs.readFileSync(file, 'utf8')), Number(last.slice(0, 4)), last);
+console.log(`\nRunning goal through ${last}: ${f(yr.total)} mi, ${f(yr.aheadBy)} vs goal pace, ${yr.active} run days, projected ${Math.round(yr.projected)} of ${yr.goalTotal}`);
 
 console.log('\nWhat a few sessions would earn on the day after the last one:');
 const next = E.isoFromDay(E.dayNumber(last) + 1);

@@ -9,7 +9,8 @@ A small installable web app (PWA) that reads a FitNotes CSV export and scores ca
 ## Files
 
 - `engine.js`: the scoring model. Pure functions, no DOM. Runs in the browser (`window.Engine`) and in Node (`require`). All tunable numbers are in `DEFAULTS` at the top.
-- `app.js`, `index.html`: the page. Material 3 web components, plain JavaScript, no build step. Three tabs (Credit, Tools, Weight); Import and Feedback show under every tab.
+- `app.js`, `index.html`: the page. Material 3 web components, plain JavaScript, no build step. Four tabs (Credit, Running, Tools, Weight); Import and Feedback show under every tab.
+- `running.js`: the Running tab, cumulative miles this year against a 2 mi/day goal line. Ported from the owner's `mattsoav-running-tracking` dashboard with its counting rules (outdoor runs, plus Home Treadmill at 3.5 mph or faster), so the totals match that dashboard rather than the credit engine's mileage. Read-only, built from the same workout CSV. Pure functions, checked in `test/run.js`.
 - `tools.js`: the Tools tab timers (stopwatch, EMOM, lifting tempo). Beeps are scheduled ahead on the Web Audio clock, every timer starts after a 3-second countdown, and a screen wake lock is held while one runs.
 - `sw.js`, `manifest.webmanifest`: offline cache, install, and the share target that lets FitNotes share a CSV straight to the app.
 - `vendor/material.js`: a prebuilt bundle of `@material/web` 2.5.0 (Apache 2.0, license beside it). Not hand-edited. See "Rebuilding the Material bundle".

@@ -1,4 +1,4 @@
-const VERSION = 14;
+const VERSION = 15;
 const $ = (id) => document.getElementById(id);
 
 // Segmented button sets have no .value, so give each one a value (the selected button's data-value) and a change event.
@@ -20,7 +20,7 @@ function segmented(id) {
 $('ver').textContent = VERSION;
 
 // ---- Tabs ----
-const TABS = ['credit', 'tools', 'weight'];
+const TABS = ['credit', 'running', 'tools', 'weight'];
 function showTab(name) {
   TABS.forEach((t) => { $(`tab-${t}`).hidden = t !== name; });
   localStorage.setItem('tab', name);
@@ -103,6 +103,7 @@ function load() {
     (result.unmapped.length ? ` Not scored (unknown muscle group): ${result.unmapped.join(', ')}.` : '');
   $('data').hidden = false;
   $('noData').hidden = true;
+  renderRunning(text);
   if (!$('when').value) $('when').value = todayIso();
   render();
 }
@@ -255,6 +256,40 @@ function renderPreview() {
   }
   renderPreview();
 })));
+
+// ---- Running goal ----
+function renderRunning(text) {
+  const year = todayIso().slice(0, 4);
+  const s = Running.yearSeries(Engine.parseCsv(text), Number(year), todayIso());
+  $('noRun').hidden = true;
+  $('runCard').hidden = false;
+  $('runTitle').textContent = `${year} miles vs. ${Running.DEFAULTS.milesPerDay} mi/day goal`;
+  $('runTotal').textContent = `${f1(s.total)} mi`;
+  $('runAhead').textContent = `${f1(Math.abs(s.aheadBy))} mi ${s.aheadBy >= 0 ? 'ahead of' : 'behind'} goal pace`;
+  $('runStats').textContent = `${s.active} run days. At this pace you'd finish the year at ${Math.round(s.projected)} of ${s.goalTotal} mi. ` +
+    (s.neededPerDay > 0 ? `To reach the goal, average ${s.neededPerDay.toFixed(2)} mi a day from here.` : 'The goal is reached.');
+
+  const W = 360, H = 220, L = 34, R = 8, T = 8, B = 20;
+  const n = s.daily.length;
+  const top = Math.max(s.daily[n - 1].miles, s.daily[n - 1].goal) * 1.05 || 1;
+  const x = (i) => L + (n > 1 ? (i * (W - L - R)) / (n - 1) : 0);
+  const y = (v) => T + (1 - v / top) * (H - T - B);
+  const step = [50, 100, 200, 250, 500].find((v) => top / v <= 5) || 1000;
+  let svg = '';
+  for (let v = 0; v <= top; v += step) svg += `<line class="grid" x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}"/><text class="lbl" x="${L - 4}" y="${y(v) + 3}" text-anchor="end">${v}</text>`;
+  const months = s.daily.map((d, i) => [d.date, i]).filter(([d]) => d.endsWith('-01'));
+  const every = months.length > 6 ? 2 : 1;
+  months.forEach(([d, i], k) => {
+    if (k % every) return;
+    const label = new Date(`${d}T12:00`).toLocaleDateString('en-US', { month: 'short' });
+    svg += `<text class="lbl" x="${x(i)}" y="${H - 5}" text-anchor="${i === 0 ? 'start' : 'middle'}">${label}</text>`;
+  });
+  const pts = (k) => s.daily.map((d, i) => `${x(i).toFixed(1)},${y(d[k]).toFixed(1)}`).join(' ');
+  svg += `<polyline class="goal" points="${pts('goal')}"/><polyline class="run" points="${pts('miles')}"/>`;
+  svg += `<circle cx="${x(n - 1)}" cy="${y(s.daily[n - 1].miles)}" r="3.5" style="fill:var(--md-sys-color-primary)"/>`;
+  $('runChart').setAttribute('viewBox', `0 0 ${W} ${H}`);
+  $('runChart').innerHTML = svg;
+}
 
 // ---- Body weight ----
 let weights = [];
