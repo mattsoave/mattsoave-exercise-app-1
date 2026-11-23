@@ -1,4 +1,4 @@
-const CACHE = 'exercise-score-v17';
+const CACHE = 'exercise-score-v18';
 const SHELL = ['./', 'index.html', 'app.js', 'tools.js', 'running.js', 'engine.js', 'weight.js', 'vendor/material.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png'];
 
 self.addEventListener('install', (e) => {

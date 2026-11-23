@@ -119,7 +119,11 @@
   .rchart .zero { stroke:var(--md-sys-color-outline); stroke-width:1.5; stroke-dasharray:4 3; }
   .rchart .area { fill:var(--md-sys-color-primary); opacity:.25; }
   .hist { width:100%; border-collapse:collapse; margin-top:8px; }
-  .hist th { text-align:left; padding:12px 0 4px; color:var(--md-sys-color-on-surface); border-bottom:1px solid var(--md-sys-color-outline-variant); }
+  .hist th { text-align:left; padding:8px; background:var(--md-sys-color-secondary-container); color:var(--md-sys-color-on-secondary-container); }
+  .hist th.num { padding-right:8px; }
+  .hist th:first-child { border-radius:8px 0 0 8px; }
+  .hist th:last-child { border-radius:0 8px 8px 0; }
+  .hist tbody + tbody tr:first-child th { border-top:12px solid var(--md-sys-color-surface-container); } /* gap between days */
   .hist td { padding:5px 8px 5px 0; vertical-align:top; color:var(--md-sys-color-on-surface); border-bottom:1px solid var(--md-sys-color-surface-variant); }
   .hist td.detail { color:var(--md-sys-color-on-surface-variant); }
   .hist .num { text-align:right; padding-right:0; white-space:nowrap; font-variant-numeric:tabular-nums; }
@@ -237,10 +241,10 @@
     </section>
 
     <section class="card">
-      <h2 class="md-typescale-title-medium">Strength history</h2>
+      <h2 class="md-typescale-title-medium">History</h2>
       <div id="history"></div>
       <div class="actions" style="margin-top:8px"><md-text-button id="historyMore" hidden>Show more days</md-text-button></div>
-      <p class="hint md-typescale-body-small">Each day's credit for a muscle group is split across its sets in proportion to each set's face value, so later sets of the same exercise and unmarked sets show less.</p>
+      <p class="hint md-typescale-body-small">Credit is worked out per day for cardio and for each muscle group, then split across that day's runs, walks, or sets in proportion to each one's face value. So a fast run shows more than an easy one, and later sets of the same exercise show less.</p>
     </section>
   </div>
   </div>

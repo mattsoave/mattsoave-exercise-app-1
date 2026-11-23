@@ -61,6 +61,8 @@ check('one set of two exercises earns the same as two sets of one exercise', (()
 })());
 check('the set curve has no jump or kink at the taper point',
   Math.abs((E.setCurve(3.001, S) - E.setCurve(3, S)) / 0.001 - 1) < 1e-3 && Math.abs((E.setCurve(3, S) - E.setCurve(2.999, S)) / 0.001 - 1) < 1e-3);
+check('per-run and per-walk credits add up to the day cardio credit', E.score(SH + '2026-01-01,Home Treadmill,Cardio,,,,3,mi,0:30:00,\n2026-01-01,Walking (Outside),Cardio,,,,2,mi,0:40:00,?/200/20\n')
+  .entries.filter((e) => e.kind === 'cardio').every((e) => e.segList.length === 2 && Math.abs(e.segList.reduce((a, s) => a + s.credit, 0) - e.credit) < 1e-9));
 check('per-set credits add up to the day credit', E.score(SH + '2026-01-01,Dumbbell Curl,Biceps,20,lbs,10,,,,x\n'.repeat(5) + '2026-01-01,Push-ups,Chest,0,lbs,10,,,,\n')
   .entries.filter((e) => e.kind === 'strength').every((e) => Math.abs(e.setList.reduce((a, s) => a + s.credit, 0) - e.credit) < 1e-9));
 check('x earns more than ~x, which earns more than no mark', E.effectiveSets(['X'], S) > E.effectiveSets(['~x'], S) && E.effectiveSets(['~x'], S) > E.effectiveSets([''], S));

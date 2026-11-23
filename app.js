@@ -1,4 +1,4 @@
-const VERSION = 17;
+const VERSION = 18;
 const $ = (id) => document.getElementById(id);
 
 // Segmented button sets have no .value, so give each one a value (the selected button's data-value) and a change event.
@@ -147,7 +147,7 @@ function render() {
   renderHistory();
 }
 
-// ---- Strength history: one table section per day, newest first ----
+// ---- History: one table section per day, newest first, with cardio and strength ----
 let historyDays = 7;
 const escapeHtml = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const num = (v) => { const n = parseFloat(v); return n > 0 ? String(+n.toFixed(2)) : ''; };
@@ -167,10 +167,21 @@ function setDetail(s) {
   return parts.join(', ') + (mark ? ` (${mark})` : '');
 }
 
+// "3.28 mi, 52:58, 3.7 mph, 261 ft climb, 20 lb vest"
+function cardioDetail(s) {
+  const secs = Math.round(s.minutes * 60);
+  const h = Math.floor(secs / 3600), m = Math.floor((secs % 3600) / 60), sec = secs % 60;
+  const time = (h ? `${h}:${String(m).padStart(2, '0')}` : `${m}`) + `:${String(sec).padStart(2, '0')}`;
+  const parts = [`${+s.miles.toFixed(2)} mi`, time, `${s.mph.toFixed(1)} mph`];
+  const climb = Math.round(s.grade * s.miles * 5280);
+  if (climb > 0) parts.push(`${climb} ft climb`);
+  if (s.vestLb) parts.push(`${s.vestLb} lb vest`);
+  return parts.join(', ');
+}
+
 function renderHistory() {
   const byDay = new Map();
   for (const e of result.entries) {
-    if (e.kind !== 'strength') continue;
     if (!byDay.has(e.date)) byDay.set(e.date, []);
     byDay.get(e.date).push(e);
   }
@@ -179,11 +190,14 @@ function renderHistory() {
   $('history').innerHTML = shown.length ? `<table class="hist md-typescale-body-medium">${shown.map((date) => {
     const groups = byDay.get(date);
     const total = groups.reduce((a, g) => a + g.credit, 0);
-    const sets = groups.flatMap((g) => g.setList).sort((a, b) => a.row - b.row);
+    // Runs, walks, and sets in the order they were logged.
+    const rows = groups.flatMap((g) => (g.kind === 'cardio'
+      ? g.segList.map((s) => ({ ...s, tag: 'cardio', detail: cardioDetail(s) }))
+      : g.setList.map((s) => ({ ...s, detail: setDetail(s) })))).sort((a, b) => a.row - b.row);
     const label = new Date(`${date}T12:00`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-    return `<tbody><tr><th colspan="2">${label}<span class="md-typescale-body-small"> &middot; ${groups.map((g) => `${g.tag} ${f1(g.credit)}`).join(', ')}</span></th><th class="num">${total.toFixed(2)}</th></tr>` +
-      sets.map((s) => `<tr><td><span class="dot c-${s.tag}"></span>${escapeHtml(s.exercise)}</td><td class="detail">${escapeHtml(setDetail(s))}</td><td class="num">${s.credit.toFixed(2)}</td></tr>`).join('') + '</tbody>';
-  }).join('')}</table>` : '<p class="hint md-typescale-body-medium">No strength sets logged yet.</p>';
+    return `<tbody><tr><th colspan="2">${label}<span class="md-typescale-body-small"> &middot; ${groups.map((g) => `${g.kind === 'cardio' ? 'cardio' : g.tag} ${f1(g.credit)}`).join(', ')}</span></th><th class="num">${total.toFixed(2)}</th></tr>` +
+      rows.map((s) => `<tr><td><span class="dot c-${s.tag}"></span>${escapeHtml(s.exercise)}</td><td class="detail">${escapeHtml(s.detail)}</td><td class="num">${s.credit.toFixed(2)}</td></tr>`).join('') + '</tbody>';
+  }).join('')}</table>` : '<p class="hint md-typescale-body-medium">Nothing logged yet.</p>';
   $('historyMore').hidden = dates.length <= historyDays;
 }
 $('historyMore').addEventListener('click', () => { historyDays += 7; renderHistory(); });

@@ -161,7 +161,10 @@
         const secs = seconds(r.Time);
         if (!(miles > 0) || !(secs > 0)) continue;
         const grade = climbFromComment(r.Comment, miles, DEFAULTS.cardio.maxGrade);
-        get(date).segments.push({ miles, minutes: secs / 60, mph: miles / (secs / 3600), grade, vestLb: vestFromComment(r.Comment), ...cardio });
+        get(date).segments.push({
+          miles, minutes: secs / 60, mph: miles / (secs / 3600), grade, vestLb: vestFromComment(r.Comment), ...cardio,
+          row: setRow++, exercise: r.Exercise.trim(), comment: r.Comment,
+        });
         continue;
       }
       if (r.Category.trim().toLowerCase() === 'cardio') continue; // e.g. rowing machine, not scored yet
@@ -309,6 +312,11 @@
           miles: d.segments.filter((s) => s.kind === 'run').reduce((a, s) => a + s.miles, 0),
           walkMiles: d.segments.filter((s) => s.kind === 'walk').reduce((a, s) => a + s.miles, 0),
           segments: d.segments.length,
+          // Split the day's credit across its runs and walks in proportion to each one's face value, for the history table.
+          segList: d.segments.map((s) => {
+            const raw = cardioPoints([s], cfg.cardio);
+            return { ...s, raw, credit: p > 0 ? (credit * raw) / p : 0 };
+          }),
         });
         state.cardio += p;
       }
