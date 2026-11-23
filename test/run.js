@@ -46,11 +46,23 @@ check('dates round-trip', E.isoFromDay(E.dayNumber('2026-03-24')) === '2026-03-2
 
 // Strength
 const S = E.DEFAULTS.strength;
+const SH = 'Date,Exercise,Category,Weight,Weight Unit,Reps,Distance,Distance Unit,Time,Comment\n';
 const sets = (n, c = '') => new Array(n).fill(c);
 check('one plain set counts exactly 1', Math.abs(E.effectiveSets(sets(1), S) - 1) < 1e-12);
-check('extra sets of one exercise count less, smoothly, with no cap',
-  [1, 2, 3, 5, 10, 20].every((n, i, a) => i === 0 || (E.effectiveSets(sets(n), S) > E.effectiveSets(sets(a[i - 1]), S) && E.effectiveSets(sets(n), S) < n)));
-check('ten sets of one exercise count as 4.5 to 6.5', E.effectiveSets(sets(10), S) > 4.5 && E.effectiveSets(sets(10), S) < 6.5);
+check('sets past the third count less, but every set still adds something (no cap)',
+  [3, 4, 5, 10, 20, 40].every((n, i, a) => i === 0 || (E.effectiveSets(sets(n), S) > E.effectiveSets(sets(a[i - 1]), S) && E.effectiveSets(sets(n), S) < n)));
+check('ten sets of one exercise count as 5.5 to 7.5', E.effectiveSets(sets(10), S) > 5.5 && E.effectiveSets(sets(10), S) < 7.5);
+check('the first three sets of an exercise count fully, and the fourth counts less',
+  [1, 2, 3].every((n) => Math.abs(E.effectiveSets(sets(n), S) - n) < 1e-12) && E.effectiveSets(sets(4), S) - 3 < 1);
+check('one set of two exercises earns the same as two sets of one exercise', (() => {
+  const day = (rows) => E.score(SH + rows).entries.find((e) => e.kind === 'strength').raw;
+  return Math.abs(day('2026-01-01,Dumbbell Curl,Biceps,20,lbs,10,,,,\n2026-01-01,Push-ups,Chest,0,lbs,10,,,,\n') -
+    day('2026-01-01,Dumbbell Curl,Biceps,20,lbs,10,,,,\n2026-01-01,Dumbbell Curl,Biceps,20,lbs,10,,,,\n')) < 1e-12;
+})());
+check('the set curve has no jump or kink at the taper point',
+  Math.abs((E.setCurve(3.001, S) - E.setCurve(3, S)) / 0.001 - 1) < 1e-3 && Math.abs((E.setCurve(3, S) - E.setCurve(2.999, S)) / 0.001 - 1) < 1e-3);
+check('per-set credits add up to the day credit', E.score(SH + '2026-01-01,Dumbbell Curl,Biceps,20,lbs,10,,,,x\n'.repeat(5) + '2026-01-01,Push-ups,Chest,0,lbs,10,,,,\n')
+  .entries.filter((e) => e.kind === 'strength').every((e) => Math.abs(e.setList.reduce((a, s) => a + s.credit, 0) - e.credit) < 1e-9));
 check('x earns more than ~x, which earns more than no mark', E.effectiveSets(['X'], S) > E.effectiveSets(['~x'], S) && E.effectiveSets(['~x'], S) > E.effectiveSets([''], S));
 check('effort marks: x, X, -x, ~x, ,~x', E.effortWeight('X', S) === 1 + S.failBonus && E.effortWeight('-x', S) === 1 + S.failBonus &&
   E.effortWeight('~x', S) === 1 + S.nearBonus && E.effortWeight(',~x', S) === 1 + S.nearBonus && E.effortWeight('box', S) === 1);

@@ -43,10 +43,16 @@
         show: (now) => [fmt(swElapsed + Math.max(0, now - s), true), now < s ? `Starting in ${Math.ceil(s - now)}` : 'Running'],
       };
     },
+    // With a hold time, each round is a hold then a rest (hold 20 in a 60-second round = 20 on, 40 off).
     emom(s) {
       const rounds = Math.max(1, Math.round(num('emomRounds', 10))), len = Math.max(5, num('emomSecs', 60));
+      const hold = Math.min(len - 1, num('emomHold', 0));
       const list = countdownBeeps(s);
       for (let k = 1; k <= rounds; k++) {
+        if (hold > 0) { // three short beeps, then a low beep when the hold ends and the rest starts
+          const start = s + (k - 1) * len, r = start + hold;
+          list.push(...[3, 2, 1].map((d) => [r - d, TONE.tick, 0.12]).filter(([t]) => t > start + 0.5), [r, TONE.end, 0.4]);
+        }
         const t = s + k * len;
         if (k < rounds) list.push(...countdownBeeps(t));
         else list.push([t - 3, TONE.tick, 0.12], [t - 2, TONE.tick, 0.12], [t - 1, TONE.tick, 0.12], [t, TONE.end, 0.8]);
@@ -54,10 +60,12 @@
       return {
         beeps: (a, b) => list.filter(([t]) => t >= a && t < b),
         show: (now) => {
-          if (now < s) return [fmt(len), `Starting in ${Math.ceil(s - now)}`];
+          if (now < s) return [fmt(hold > 0 ? hold : len), `Starting in ${Math.ceil(s - now)}`];
           const k = Math.floor((now - s) / len);
           if (k >= rounds) return [fmt(0), `Done: ${rounds} rounds`, true];
-          return [fmt(len - (now - s - k * len)), `Round ${k + 1} of ${rounds}`];
+          const into = now - s - k * len;
+          if (hold > 0) return into < hold ? [fmt(hold - into), `Round ${k + 1} of ${rounds}: hold`] : [fmt(len - into), `Round ${k + 1} of ${rounds}: rest`];
+          return [fmt(len - into), `Round ${k + 1} of ${rounds}`];
         },
       };
     },
@@ -143,11 +151,11 @@
     const m = $('toolMode').value;
     $('emomInputs').hidden = m !== 'emom';
     $('tempoInputs').hidden = m !== 'tempo';
-    $('tClock').textContent = m === 'emom' ? fmt(num('emomSecs', 60)) : m === 'tempo' ? 'Ready' : fmt(swElapsed, true);
+    $('tClock').textContent = m === 'emom' ? fmt(num('emomHold', 0) > 0 ? num('emomHold', 0) : num('emomSecs', 60)) : m === 'tempo' ? 'Ready' : fmt(swElapsed, true);
     $('tStatus').innerHTML = '&nbsp;';
     $('tHint').textContent = {
       stopwatch: 'Counts up after a 3-second countdown. Stop pauses it; Start resumes after another countdown.',
-      emom: 'Beeps at the start of each round, with three short beeps before it. A low beep ends the last round.',
+      emom: 'Beeps at the start of each round, with three short beeps before it. With a hold time, a low beep ends each hold and the rest of the round is rest. A long low beep ends the last round.',
       tempo: 'A different tone starts each phase: high for up, low for down. Set a phase to 0 to skip it.',
     }[m] + ' Keep the app open and the screen on; Android may stop the beeps if you switch apps.';
   }
@@ -156,6 +164,6 @@
   $('tStop').addEventListener('click', () => stop());
   $('tReset').addEventListener('click', reset);
   $('toolMode').addEventListener('change', () => { stop(); show(); });
-  ['emomSecs'].forEach((id) => $(id).addEventListener('input', () => { if (!run) show(); }));
+  ['emomSecs', 'emomHold'].forEach((id) => $(id).addEventListener('input', () => { if (!run) show(); }));
   show();
 })();

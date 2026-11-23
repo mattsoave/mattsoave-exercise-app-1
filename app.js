@@ -1,4 +1,4 @@
-const VERSION = 16;
+const VERSION = 17;
 const $ = (id) => document.getElementById(id);
 
 // Segmented button sets have no .value, so give each one a value (the selected button's data-value) and a change event.
@@ -144,7 +144,49 @@ function render() {
   renderFresh();
   renderDecay();
   renderPreview();
+  renderHistory();
 }
+
+// ---- Strength history: one table section per day, newest first ----
+let historyDays = 7;
+const escapeHtml = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const num = (v) => { const n = parseFloat(v); return n > 0 ? String(+n.toFixed(2)) : ''; };
+
+// "40 lb x 6", "1:00", "20 lb, 1:00" (FitNotes puts a hold's weight in Distance with unit m).
+function setDetail(s) {
+  const parts = [];
+  const w = num(s.weight), reps = num(s.reps), dist = num(s.distance);
+  const unit = (s.unit || 'lbs').replace(/s$/, '');
+  if (w && reps) parts.push(`${w} ${unit} x ${reps}`);
+  else if (reps) parts.push(`x ${reps}`);
+  else if (w) parts.push(`${w} ${unit}`);
+  if (dist && s.distanceUnit === 'm') parts.push(`${dist} lb`);
+  const t = (s.time || '').replace(/^0:0?/, '');
+  if (t && t !== '0' && s.time !== '0:00:00') parts.push(t);
+  const mark = (s.comment || '').trim();
+  return parts.join(', ') + (mark ? ` (${mark})` : '');
+}
+
+function renderHistory() {
+  const byDay = new Map();
+  for (const e of result.entries) {
+    if (e.kind !== 'strength') continue;
+    if (!byDay.has(e.date)) byDay.set(e.date, []);
+    byDay.get(e.date).push(e);
+  }
+  const dates = [...byDay.keys()].sort().reverse();
+  const shown = dates.slice(0, historyDays);
+  $('history').innerHTML = shown.length ? `<table class="hist md-typescale-body-medium">${shown.map((date) => {
+    const groups = byDay.get(date);
+    const total = groups.reduce((a, g) => a + g.credit, 0);
+    const sets = groups.flatMap((g) => g.setList).sort((a, b) => a.row - b.row);
+    const label = new Date(`${date}T12:00`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+    return `<tbody><tr><th colspan="2">${label}<span class="md-typescale-body-small"> &middot; ${groups.map((g) => `${g.tag} ${f1(g.credit)}`).join(', ')}</span></th><th class="num">${total.toFixed(2)}</th></tr>` +
+      sets.map((s) => `<tr><td><span class="dot c-${s.tag}"></span>${escapeHtml(s.exercise)}</td><td class="detail">${escapeHtml(setDetail(s))}</td><td class="num">${s.credit.toFixed(2)}</td></tr>`).join('') + '</tbody>';
+  }).join('')}</table>` : '<p class="hint md-typescale-body-medium">No strength sets logged yet.</p>';
+  $('historyMore').hidden = dates.length <= historyDays;
+}
+$('historyMore').addEventListener('click', () => { historyDays += 7; renderHistory(); });
 
 const DECAY_LINES = [
   ['Cardio', 'cardio', 'var(--md-sys-color-primary)'],

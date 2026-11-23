@@ -118,6 +118,11 @@
   .rchart .run { fill:none; stroke:var(--md-sys-color-primary); stroke-width:2.5; stroke-linejoin:round; }
   .rchart .zero { stroke:var(--md-sys-color-outline); stroke-width:1.5; stroke-dasharray:4 3; }
   .rchart .area { fill:var(--md-sys-color-primary); opacity:.25; }
+  .hist { width:100%; border-collapse:collapse; margin-top:8px; }
+  .hist th { text-align:left; padding:12px 0 4px; color:var(--md-sys-color-on-surface); border-bottom:1px solid var(--md-sys-color-outline-variant); }
+  .hist td { padding:5px 8px 5px 0; vertical-align:top; color:var(--md-sys-color-on-surface); border-bottom:1px solid var(--md-sys-color-surface-variant); }
+  .hist td.detail { color:var(--md-sys-color-on-surface-variant); }
+  .hist .num { text-align:right; padding-right:0; white-space:nowrap; font-variant-numeric:tabular-nums; }
   .clock { text-align:center; margin:20px 0 4px; font-variant-numeric:tabular-nums; }
   .clockstatus { text-align:center; min-height:1.5em; margin-bottom:12px; color:var(--md-sys-color-on-surface-variant); }
   /* The Material type styles load with vendor/material.js, after the first paint. Hold the page back until then so
@@ -228,7 +233,14 @@
         <md-outlined-text-field id="exercises" label="Exercises" type="number" step="1" min="1" value="3"></md-outlined-text-field>
       </div>
       <div class="result md-typescale-title-medium" id="preview"></div>
-      <p class="hint md-typescale-body-small">Credit is the face value minus a discount for recent work of the same kind. The percentage is the average over the whole session, so it is lower than the first mile's value above. Strength sets are spread evenly over the exercises, and extra sets of one exercise count a little less each.</p>
+      <p class="hint md-typescale-body-small">Credit is the face value minus a discount for recent work of the same kind. The percentage is the average over the whole session, so it is lower than the first mile's value above. Strength sets are spread evenly over the exercises. The first three sets of an exercise count fully, and later sets of the same exercise count a little less each, so the number of exercises only matters once one of them goes past three sets.</p>
+    </section>
+
+    <section class="card">
+      <h2 class="md-typescale-title-medium">Strength history</h2>
+      <div id="history"></div>
+      <div class="actions" style="margin-top:8px"><md-text-button id="historyMore" hidden>Show more days</md-text-button></div>
+      <p class="hint md-typescale-body-small">Each day's credit for a muscle group is split across its sets in proportion to each set's face value, so later sets of the same exercise and unmarked sets show less.</p>
     </section>
   </div>
   </div>
@@ -269,6 +281,7 @@
     <div class="row" id="emomInputs" hidden>
       <md-outlined-text-field id="emomRounds" label="Rounds" type="number" step="1" min="1" value="10"></md-outlined-text-field>
       <md-outlined-text-field id="emomSecs" label="Seconds per round" type="number" step="5" min="10" value="60"></md-outlined-text-field>
+      <md-outlined-text-field id="emomHold" label="Hold (s), 0 for none" type="number" step="5" min="0" value="0"></md-outlined-text-field>
     </div>
     <div class="row" id="tempoInputs" hidden>
       <md-outlined-text-field id="tUp" label="Up (s)" type="number" step="0.5" min="0" value="1"></md-outlined-text-field>

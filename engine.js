@@ -29,7 +29,7 @@
       allTau: 14,        // days. How fast overall strength load fades.
       allK: 25,          // points. Overall load that halves credit.
       pointsPerSet: 0.25, // points for one normal set.
-      exerciseSets: 4,   // sets. Extra sets of the same exercise on the same day count less, smoothly: with 4, ten sets count as about 5.6.
+      fullSets: 3,       // sets. The first 3 sets of one exercise in a day count fully; after that set n counts about 3/n, so ten sets count as about 6.6.
       failBonus: 0.15,   // extra for a set marked "x" in the comment (couldn't do another rep).
       nearBonus: 0.05,   // extra for a set marked "~x" (very close).
     },
@@ -146,8 +146,9 @@
   function buildDays(rows) {
     const days = new Map();
     const unmapped = new Set();
+    let setRow = 0;
     const get = (date) => {
-      // sets[tag] maps each exercise name to the comments of its sets that day.
+      // sets[tag] maps each exercise name to its sets that day, in logged order.
       if (!days.has(date)) days.set(date, { date, segments: [], sets: { upper: new Map(), lower: new Map(), core: new Map() } });
       return days.get(date);
     };
@@ -169,7 +170,10 @@
       const byExercise = get(date).sets[tag];
       const name = r.Exercise.trim();
       if (!byExercise.has(name)) byExercise.set(name, []);
-      byExercise.get(name).push(r.Comment);
+      byExercise.get(name).push({
+        row: setRow++, exercise: name, comment: r.Comment, weight: r.Weight, unit: r['Weight Unit'], reps: r.Reps,
+        distance: r.Distance, distanceUnit: r['Distance Unit'], time: r.Time,
+      });
     }
     return { days: [...days.values()].sort((a, b) => (a.date < b.date ? -1 : 1)), unmapped: [...unmapped] };
   }
@@ -224,20 +228,26 @@
     return K * Math.log((K + L + p) / (K + L));
   }
 
-  // Effective sets for n sets of one exercise in a day: a smooth curve where the first set counts 1 and each
-  // extra set counts a bit less. Effort marks (x, ~x) scale the result by the average effort weight.
-  function effectiveSets(comments, s) {
-    const n = comments.length;
-    if (!n) return 0;
-    const a = s.exerciseSets;
-    const avgEffort = comments.reduce((t, c) => t + effortWeight(c, s), 0) / n;
-    return (Math.log(1 + n / a) / Math.log(1 + 1 / a)) * avgEffort;
+  // Cumulative effective sets after n sets of one exercise in a day. Equal to n up to fullSets, then
+  // k(1 + ln(n/k)), so set n counts about k/n. The slope is 1 on both sides of k, so there is no kink or jump.
+  function setCurve(n, s) {
+    const k = s.fullSets;
+    return n <= k ? n : k * (1 + Math.log(n / k));
   }
 
-  // Points for one muscle group's day: the map from exercise name to set comments.
+  // Effective sets for one exercise's sets in a day (a list of set objects or plain comments). Each set adds
+  // its step on the curve, scaled by its own effort mark (x, ~x). Returns the total and each set's share.
+  function setValues(sets, s) {
+    return sets.map((set, i) => (setCurve(i + 1, s) - setCurve(i, s)) * effortWeight(typeof set === 'string' ? set : set.comment, s));
+  }
+  function effectiveSets(sets, s) {
+    return setValues(sets, s).reduce((a, v) => a + v, 0);
+  }
+
+  // Points for one muscle group's day: the map from exercise name to its sets.
   function strengthPoints(byExercise, s) {
     let e = 0;
-    for (const comments of byExercise.values()) e += effectiveSets(comments, s);
+    for (const sets of byExercise.values()) e += effectiveSets(sets, s);
     return e * s.pointsPerSet;
   }
 
@@ -310,7 +320,16 @@
         const pts = strengthPoints(byExercise, cfg.strength);
         const credit = strengthCredit(state[tag], state.strength, pts, cfg.strength);
         const sets = [...byExercise.values()].reduce((a, c) => a + c.length, 0);
-        entries.push({ date: d.date, kind: 'strength', tag, sets, raw: pts, credit });
+        // Split the group's credit across its sets in proportion to each set's face value.
+        const setList = [];
+        for (const list of byExercise.values()) {
+          setValues(list, cfg.strength).forEach((v, i) => {
+            const raw = v * cfg.strength.pointsPerSet;
+            setList.push({ ...list[i], tag, raw, credit: pts > 0 ? (credit * raw) / pts : 0 });
+          });
+        }
+        setList.sort((a, b) => a.row - b.row);
+        entries.push({ date: d.date, kind: 'strength', tag, sets, raw: pts, credit, setList });
         state[tag] += pts;
         state.strength += pts; // each group adds to the overall load before the next group is scored
         total += pts;
@@ -404,7 +423,7 @@
 
   const api = {
     DEFAULTS, TAGS, parseCsv, buildDays, score, previewRun, previewWalk, previewStrength, freshnessSeries, walkPoints, walkMET, climbFromComment, freshness, weekly, totals,
-    cardioCredit, paceFactor, isoFromDay, dayNumber, vestFromComment, effortWeight, effectiveSets, strengthCredit,
+    cardioCredit, paceFactor, isoFromDay, dayNumber, vestFromComment, effortWeight, effectiveSets, setCurve, strengthCredit,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Engine = api;
